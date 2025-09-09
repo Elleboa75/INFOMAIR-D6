@@ -17,7 +17,7 @@ hello = {
 }
 
 inform = {
-    "okay im looking for",
+    "looking for",
     "any area",
     "i dont care",
     "i would like",
