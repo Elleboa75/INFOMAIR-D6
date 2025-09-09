@@ -2,7 +2,7 @@ import pandas as pd
 dialog_act = []
 utterance_content = []
 
-with open("all_dialogs.txt") as f:
+with open("dialog_acts.dat") as f:
     for line in f:
         split_line = line.split(' ')
         act = split_line[0]
@@ -12,6 +12,9 @@ with open("all_dialogs.txt") as f:
         
         
     f.close()
+    
+    
+
     
 
 if __name__ == '__main__':
