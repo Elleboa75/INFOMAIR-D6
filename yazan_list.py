@@ -4,9 +4,9 @@ deny = {
     "not any more",
     "i dont want",
     "wrong",
-    "not european fusion",
+    "not",
     "dont want that",
-    "can you change romanian food to something else",
+    "can you change",
     "that is not important",
 }
 
@@ -17,10 +17,10 @@ hello = {
 }
 
 inform = {
-    "okay im looking for moderate price range",
+    "okay im looking for",
     "any area",
     "i dont care",
-    "i would like a cheap restaurant in the north part of town",
+    "i would like",
 }
 
 negate = {
