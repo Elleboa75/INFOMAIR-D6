@@ -158,22 +158,6 @@ class MachineModelTwo():
 
         print(f"Training accuracy: {train_acc:.4f}")
         print(f"Test accuracy: {test_acc:.4f}")
-
-        # Classification report
-        # print("\nClassification Report:")
-        # target_names = self.label_encoder.classes_
-        # print(classification_report(test_labels, test_predictions, 
-        #                           target_names=target_names))
-
-        #! temp
-        # # Feature importance (top 10 most important words)
-        # feature_names = self.vectorizer.get_feature_names_out()
-        # importances = model.feature_importances_
-        
-        # top_indices = importances.argsort()[-10:][::-1]
-        # print("\nTop 10 Most Important Words:")
-        # for i in top_indices:
-        #     print(f"{feature_names[i]}: {importances[i]:.4f}")
         
 
 if __name__ == "__main__":
