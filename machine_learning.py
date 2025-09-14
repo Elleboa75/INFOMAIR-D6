@@ -2,9 +2,13 @@ import pandas as pd
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
+from sklearn import tree  
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.metrics import accuracy_score, classification_report
+import pickle
 
+# Neural Network Model
 class MachineModelOne():
-
     def __init__(self,
                  dataset_location,
                  max_tokens = 100,
@@ -42,7 +46,7 @@ class MachineModelOne():
             df,
             test_size=0.15,
             random_state=42,
-            stratify=df['dialog_act']
+            #stratify=df['dialog_act']
         )
 
         train_labels = train_df['dialog_act'].values
@@ -62,12 +66,21 @@ class MachineModelOne():
         self.data.append(train_data)
         self.data.append(test_data)
 
-    def model(self):
-
+    def train_model(self):
+        """
         model = tf.keras.models.Sequential([
             tf.keras.layers.Embedding(input_dim = self.max_tokens, output_dim = 128),
             tf.keras.layers.GlobalAveragePooling1D(),
             tf.keras.layers.Dense(64, activation = "relu"),
+            tf.keras.layers.Dense(15, activation = "softmax")
+        ])
+        """
+        model = tf.keras.models.Sequential([
+            tf.keras.layers.Embedding(input_dim = self.max_tokens, output_dim = 128),
+            tf.keras.layers.GlobalAveragePooling1D(),
+            tf.keras.layers.Dense(256, activation = "relu"),
+            tf.keras.layers.Dense(512, activation = "relu"),
+            tf.keras.layers.Dense(1024, activation = "relu"),
             tf.keras.layers.Dense(15, activation = "softmax")
         ])
 
@@ -80,15 +93,17 @@ class MachineModelOne():
         history = model.fit(
             self.data[0],
             validation_data = self.data[1],
-            epochs = 10
+            epochs = 50
+        
         )
-        print(history.history)
+        #print(history.history)
+        model.save("models/NN_model.keras")
+        
+        
+
+
     
-    
-from sklearn import tree  
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.metrics import accuracy_score, classification_report
-      
+# Decision Tree Model
 class MachineModelTwo():
     def __init__(self, dataset_location, max_features=100, max_depth=None):
         self.dataset_location = dataset_location
@@ -97,7 +112,7 @@ class MachineModelTwo():
         self.data = []   
         self.label_encoder = LabelEncoder()    
         self.vectorizer = CountVectorizer(max_features=max_features, stop_words='english')
-
+        self.model = None
         
     def preprocess(self):
         with open(self.dataset_location, "r", encoding="utf-8") as f:
@@ -142,15 +157,21 @@ class MachineModelTwo():
         self.data.append(train_data)
         self.data.append(test_data)
         
-    def model(self):
+    def train_model(self):
         train_vectors, train_labels = self.data[0]
-        test_vectors, test_labels = self.data[1]
-        
         clf = tree.DecisionTreeClassifier(max_depth=self.max_deph, random_state=42)
         model = clf.fit(train_vectors, train_labels)
-        
-        train_predictions = model.predict(train_vectors)
-        test_predictions = model.predict(test_vectors)
+        self.model = model
+        dt_file = open('models/DT_model.pkl', 'ab')
+        pickle.dump(model, dt_file)
+        dt_file.close()
+
+    def eval_model(self): 
+        train_vectors, train_labels = self.data[0]
+        test_vectors, test_labels = self.data[1]
+
+        train_predictions = self.model.predict(train_vectors)
+        test_predictions = self.model.predict(test_vectors)
         
         train_acc = accuracy_score(train_labels, train_predictions)
         test_acc = accuracy_score(test_labels, test_predictions)
@@ -159,6 +180,8 @@ class MachineModelTwo():
         print(f"Test accuracy: {test_acc:.4f}")
         
 
+
+"""
 if __name__ == "__main__":
     dataset_location = "dialog_acts.dat"
     machine_model = MachineModelOne(dataset_location = dataset_location)
@@ -168,3 +191,4 @@ if __name__ == "__main__":
     machine_model = MachineModelTwo(dataset_location = dataset_location)
     machine_model.preprocess()
     machine_model.model()
+"""
