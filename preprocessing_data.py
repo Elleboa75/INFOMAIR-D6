@@ -1,5 +1,3 @@
-# first split it in labels and actual text
-
 import pandas as pd
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
@@ -15,7 +13,7 @@ class MachineModelOne():
         self.max_tokens = max_tokens
         self.sequence_length = sequence_length
         self.dataset_location = dataset_location
-        self.data = [] #Final data of the form (train_data, test_data)
+        self.data = [] #Final data of the form [train_data, test_data]
         self.label_encoder = LabelEncoder()
         self.vectorize_layer = tf.keras.layers.TextVectorization(
             max_tokens = max_tokens,
@@ -38,6 +36,7 @@ class MachineModelOne():
 
         # Create DataFrame
         df = pd.DataFrame(data, columns=["dialog_act", "sentence"])
+        df = df.drop_duplicates(subset = ["sentence"]) # drop deduplication
 
         train_df, test_df = train_test_split(
             df,
