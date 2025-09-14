@@ -8,11 +8,15 @@ from sklearn.metrics import accuracy_score, classification_report
 import pickle
 
 # Neural Network Model
+    ## add predict
+    ## standardize preprocess
+    ## standardize eval
 class MachineModelOne():
     def __init__(self,
                  dataset_location,
                  max_tokens = 100,
-                 sequence_length = 50
+                 sequence_length = 50,
+                 model = None
                  ):
         self.max_tokens = max_tokens
         self.sequence_length = sequence_length
@@ -23,7 +27,9 @@ class MachineModelOne():
             max_tokens = max_tokens,
             output_mode = "int",
             output_sequence_length = sequence_length
-        )
+        )       
+        self.model = model
+
 
     def preprocess(self):
         with open(self.dataset_location, "r", encoding="utf-8") as f:
@@ -67,22 +73,13 @@ class MachineModelOne():
         self.data.append(test_data)
 
     def train_model(self):
-        """
         model = tf.keras.models.Sequential([
             tf.keras.layers.Embedding(input_dim = self.max_tokens, output_dim = 128),
             tf.keras.layers.GlobalAveragePooling1D(),
             tf.keras.layers.Dense(64, activation = "relu"),
             tf.keras.layers.Dense(15, activation = "softmax")
         ])
-        """
-        model = tf.keras.models.Sequential([
-            tf.keras.layers.Embedding(input_dim = self.max_tokens, output_dim = 128),
-            tf.keras.layers.GlobalAveragePooling1D(),
-            tf.keras.layers.Dense(256, activation = "relu"),
-            tf.keras.layers.Dense(512, activation = "relu"),
-            tf.keras.layers.Dense(1024, activation = "relu"),
-            tf.keras.layers.Dense(15, activation = "softmax")
-        ])
+   
 
         model.compile(
             loss = "sparse_categorical_crossentropy",
@@ -99,20 +96,27 @@ class MachineModelOne():
         #print(history.history)
         model.save("models/NN_model.keras")
         
+    def eval_model(self):   
+        train_results = self.model.evaluate(self.data[0])
+        test_results = self.model.evaluate(self.data[1])
+        print("DNN Train Loss, DNN Train Accuracy:", train_results) 
+        print("DNN Test Loss, DNN Test Accuracy:", test_results)
         
-
 
     
 # Decision Tree Model
+    ## add predict
+    ## standardize preprocess
+    ## standardize eval
 class MachineModelTwo():
-    def __init__(self, dataset_location, max_features=100, max_depth=None):
+    def __init__(self, dataset_location, max_features=100, max_depth=None, model=None):
         self.dataset_location = dataset_location
         self.max_features = max_features
         self.max_deph = max_depth
         self.data = []   
         self.label_encoder = LabelEncoder()    
         self.vectorizer = CountVectorizer(max_features=max_features, stop_words='english')
-        self.model = None
+        self.model = model
         
     def preprocess(self):
         with open(self.dataset_location, "r", encoding="utf-8") as f:
@@ -156,7 +160,7 @@ class MachineModelTwo():
 
         self.data.append(train_data)
         self.data.append(test_data)
-        
+    
     def train_model(self):
         train_vectors, train_labels = self.data[0]
         clf = tree.DecisionTreeClassifier(max_depth=self.max_deph, random_state=42)
@@ -176,8 +180,8 @@ class MachineModelTwo():
         train_acc = accuracy_score(train_labels, train_predictions)
         test_acc = accuracy_score(test_labels, test_predictions)
 
-        print(f"Training accuracy: {train_acc:.4f}")
-        print(f"Test accuracy: {test_acc:.4f}")
+        print(f"DT Training accuracy: {train_acc:.4f}")
+        print(f"DT Test accuracy: {test_acc:.4f}")
         
 
 
