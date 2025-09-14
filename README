@@ -1,0 +1,5 @@
+Steps to see the performance of our models
+
+Step one: run the main.py. This will train and save the models
+
+Step two: run eval.py. This will print the stats of the models in the console

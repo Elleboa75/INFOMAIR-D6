@@ -1,7 +1,7 @@
 import pickle
 from baseline import Train_Baseline_1, Train_Baseline_2
 from data_preprocess import format_data
-from machine_learning import MachineModelOne, MachineModelTwo   
+from machine_learning import MachineModelOne, MachineModelTwo, MachineModelThree
 import tensorflow as tf 
 if __name__ == "__main__":
     labels, text = format_data("dialog_acts.dat")
@@ -18,6 +18,10 @@ if __name__ == "__main__":
     NNmodel = MachineModelOne(dataset_location = "dialog_acts.dat", model = tf.keras.models.load_model("models/NN_model.keras"))
     NNmodel.preprocess()
 
+    LRmodel = MachineModelThree("dialog_acts.dat", model=None, model_path="models/LR_model.keras")
+    LRmodel.preprocess()
+    LRmodel.eval_model()
+
     ## Baseline Models
     baseline_1_model.evaluate(text, labels)
     baseline_2_model.evaluate(text, labels)   
@@ -26,7 +30,11 @@ if __name__ == "__main__":
     DT_model.eval_model() 
 
     ## Neural Network Model 
-    NNmodel.eval_model()    
+    NNmodel.eval_model()
+
+    LRmodel.eval_model()
+
+
 
 
 """
