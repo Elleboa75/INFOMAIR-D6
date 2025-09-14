@@ -182,8 +182,7 @@ class MachineModelTwo():
 
         print(f"DT Training accuracy: {train_acc:.4f}")
         print(f"DT Test accuracy: {test_acc:.4f}")
-        
-
+# Logistic Regression model
 
 """
 if __name__ == "__main__":
