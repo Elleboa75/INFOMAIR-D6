@@ -1,3 +1,4 @@
+import Levenshtein
 import pandas as pd
 
 # reading csv file
@@ -40,7 +41,7 @@ import pandas as pd
 df = pd.read_csv("assets/restaurant_info.csv")
 
 # user input
-user_input = "I want a restaurant in west".lower()
+user_input = "I want Spanihh food".lower()
 split_input = user_input.split()
 
 text_columns = ['food', 'pricerange', 'area']
@@ -56,3 +57,51 @@ for column in text_columns:
 
 # filter rows where any match occurred
 df_matches = df[mask]
+
+#remove duplicates from the dataframe
+if df_matches.empty:
+    # Keep the three columns where the match could be found.
+    df_food = df['food'].drop_duplicates()
+    df_price_range = df['pricerange'].drop_duplicates()
+    df_area = df['area'].drop_duplicates()
+
+    possible_matches = []
+
+    # ---- text_columns ----
+    for item in df_food:
+        for split in split_input:
+            dist_calc = Levenshtein.distance(split, str(item).lower())
+            if dist_calc < 4:
+                possible_matches.append([split, item, dist_calc])
+
+    for item in df_price_range:
+        for split in split_input:
+            dist_calc = Levenshtein.distance(split, str(item).lower())
+            if dist_calc < 4:
+                possible_matches.append([split, item, dist_calc])
+
+    for item in df_area:
+        for split in split_input:
+            dist_calc = Levenshtein.distance(split, str(item).lower())
+            if dist_calc < 4:
+                possible_matches.append([split, item, dist_calc])
+
+    # ---- remaining columns ----
+    remaining_columns = [c for c in df.columns if c not in text_columns]
+    for column in remaining_columns:
+        unique_values = df[column].drop_duplicates()
+        for item in unique_values:
+            for split in split_input:
+                dist_calc = Levenshtein.distance(split, str(item).lower())
+                if dist_calc < 4:
+                    possible_matches.append([split, item, dist_calc])
+
+    # create DataFrame with input word, match, and score
+    df_possible_matches = pd.DataFrame(
+        possible_matches,
+        columns=["input_word", "possible_match", "levenshtein_distance"]
+    )
+
+    print(df_possible_matches)
+
+
