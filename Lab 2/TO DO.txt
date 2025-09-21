@@ -1,3 +1,5 @@
+Change the dialog act prediction model to the Neural network one
+
 Make the system more robust:
  - If a user wants to change in preference
  - Change the diagram if needed
