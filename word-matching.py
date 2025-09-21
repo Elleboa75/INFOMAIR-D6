@@ -41,7 +41,7 @@ import pandas as pd
 df = pd.read_csv("assets/restaurant_info.csv")
 
 # user input
-user_input = "I want Spanihh food".lower()
+user_input = "I want to eat in the west".lower()
 split_input = user_input.split()
 
 text_columns = ['food', 'pricerange', 'area']
@@ -102,6 +102,12 @@ if df_matches.empty:
         columns=["input_word", "possible_match", "levenshtein_distance"]
     )
 
-    print(df_possible_matches)
+    def get_match_with_smallest_distance(df):
+        df.sort_values(by=['levenshtein_distance'], inplace=True)
+        return df.iloc[0]['possible_match']
 
-
+    if df_possible_matches.empty:
+        print("No matches found")
+    else:
+        best_match = get_match_with_smallest_distance(df_possible_matches)
+        print(best_match)
