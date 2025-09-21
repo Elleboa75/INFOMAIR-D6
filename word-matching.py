@@ -1,47 +1,11 @@
 import Levenshtein
 import pandas as pd
 
-# reading csv file
-# df = pd.read_csv("assets/restaurant_info.csv")
-# # print(df)
-#
-# df_food = df['food']
-# df_price_range = df['pricerange']
-# df_area = df['area']
-#
-#
-#
-# # o.b.v. keywords uithalen
-#
-# user_input = "I want a restaurant serving Chinese food".lower()
-#
-# # split the input
-# split_input = user_input.split()
-# text_columns = ['food', 'pricerange', 'area']
-# match = []
-# for column in text_columns:
-#     mask = df[column].str.contains("chinese")
-#
-#     match.append(mask)
-# print('----------')
-# for column in text_columns:
-#     for split in split_input:
-#         match = df.loc[df[column].str.contains(split)]
-#
-#         print(f"match: {split} {match[column]}")
-#         print(column)
-#
-#         ## full match
-#         # nu doet ie contains, als het letter in een woord zit.
-
-## Extract preference of the user.
-
-
 
 df = pd.read_csv("assets/restaurant_info.csv")
 
 # user input
-user_input = "I want to eat in the west".lower()
+user_input = "I want to go turkishh ".lower()
 split_input = user_input.split()
 
 text_columns = ['food', 'pricerange', 'area']
@@ -58,9 +22,13 @@ for column in text_columns:
 # filter rows where any match occurred
 df_matches = df[mask]
 
-#remove duplicates from the dataframe
-if df_matches.empty:
-    # Keep the three columns where the match could be found.
+# --- print exact matches first ---
+if not df_matches.empty:
+    print(f"Found {len(df_matches)} exact keyword matches")
+    cols_to_show = [c for c in ["restaurantname", "food", "pricerange", "area"] if c in df.columns]
+    print(df_matches[cols_to_show].head(10))
+else:
+    #remove duplicates from the dataframe
     df_food = df['food'].drop_duplicates()
     df_price_range = df['pricerange'].drop_duplicates()
     df_area = df['area'].drop_duplicates()
@@ -110,4 +78,4 @@ if df_matches.empty:
         print("No matches found")
     else:
         best_match = get_match_with_smallest_distance(df_possible_matches)
-        print(best_match)
+        print("Best fuzzy match:", best_match)
