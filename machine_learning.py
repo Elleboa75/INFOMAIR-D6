@@ -13,103 +13,177 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.metrics import accuracy_score, classification_report
 import pickle
 
-# Neural Network Model
-    ## add predict
-    ## standardize preprocess
-    ## standardize eval
 class MachineModelOne():
     def __init__(self,
                  dataset_location,
-                 max_tokens = 100,
-                 sequence_length = 50,
-                 model = None
-                 ):
-        self.max_tokens = max_tokens
-        self.sequence_length = sequence_length
+                 max_features=3000,
+                 model=None,
+                 model_path="models/NN_model.keras"):
         self.dataset_location = dataset_location
-        self.data = [] #Final data of the form [train_data, test_data]
-        self.label_encoder = LabelEncoder()
-        self.vectorize_layer = tf.keras.layers.TextVectorization(
-            max_tokens = max_tokens,
-            output_mode = "int",
-            output_sequence_length = sequence_length
-        )       
         self.model = model
+        self.model_path = model_path
 
+        # BoW vectorizer (TF-IDF)
+        self.vectorizer = TfidfVectorizer(
+            max_features=max_features,
+            ngram_range=(1, 2),              # unigrams + bigrams
+            stop_words=None,                 # keep function words (often helpful for intents)
+            token_pattern=r"(?u)\b\w+\b",
+            lowercase=True,
+            min_df=2,
+            max_df=0.95
+        )
+        self.label_encoder = LabelEncoder()
+        self.data = []   # will hold [(X_train, y_train), (X_test, y_test)]
 
     def preprocess(self):
+        # Read "<dialog_act> <sentence...>" lines
         with open(self.dataset_location, "r", encoding="utf-8") as f:
-            lines = f.readlines()
+            lines = [ln.strip() for ln in f if ln.strip()]
 
-        data = []
+        pairs = []
         for line in lines:
-            parts = line.strip().split(maxsplit=1)  # split only on the first space
-            if len(parts) == 2:
-                dialog_act, sentence = parts
-            else:  # case where line has only dialog_act and no sentence
-                dialog_act, sentence = parts[0], ""
-            data.append((dialog_act, sentence))
+            parts = line.split(maxsplit=1)
+            dialog_act, sentence = (parts + [""])[:2]
+            pairs.append((dialog_act, sentence))
 
-        # Create DataFrame
-        df = pd.DataFrame(data, columns=["dialog_act", "sentence"])
-        df = df.drop_duplicates(subset = ["sentence"]) # drop deduplication
+        df = pd.DataFrame(pairs, columns=["dialog_act", "sentence"])
+        df = df.drop_duplicates(subset=["dialog_act", "sentence"]).reset_index(drop=True)
 
-        train_df, test_df = train_test_split(
-            df,
-            test_size=0.15,
-            random_state=42,
-            #stratify=df['dialog_act']
-        )
+        # Stratified split if possible
+        try:
+            train_df, test_df = train_test_split(
+                df, test_size=0.15, random_state=42, stratify=df["dialog_act"]
+            )
+        except ValueError:
+            train_df, test_df = train_test_split(df, test_size=0.15, random_state=42)
 
-        train_labels = train_df['dialog_act'].values
-        test_labels = test_df['dialog_act'].values
+        # Labels
+        y_train = self.label_encoder.fit_transform(train_df["dialog_act"].values)
+        y_test  = self.label_encoder.transform(test_df["dialog_act"].values)
 
-        train_labels = self.label_encoder.fit_transform(train_labels)
-        test_labels = self.label_encoder.transform(test_labels)
+        # TF-IDF BoW
+        self.vectorizer.fit(train_df["sentence"].values)
+        X_train = self.vectorizer.transform(train_df["sentence"].values)
+        X_test  = self.vectorizer.transform(test_df["sentence"].values)
 
-        self.vectorize_layer.adapt(train_df["sentence"].values)
+        self.data = [(X_train, y_train), (X_test, y_test)]
 
-        train_data = tf.data.Dataset.from_tensor_slices((train_df["sentence"], train_labels)).batch(16)
-        test_data = tf.data.Dataset.from_tensor_slices((test_df["sentence"], test_labels)).batch(16)
+    def train_model(self, epochs=50, batch_size=32, hidden_units=128, l2=1e-4):
+        if not self.data:
+            raise RuntimeError("Call preprocess() before train_model().")
 
-        train_data = train_data.map(lambda x, y: (self.vectorize_layer(x), y))
-        test_data = test_data.map(lambda x, y: (self.vectorize_layer(x), y))
+        (X_train_sparse, y_train), (X_val_sparse, y_val) = self.data
 
-        self.data.append(train_data)
-        self.data.append(test_data)
+        # Keras Dense layers need dense floats; for moderate vocab sizes this is fine
+        X_train = X_train_sparse.toarray().astype("float32")
+        X_val   = X_val_sparse.toarray().astype("float32")
 
-    def train_model(self):
-        model = tf.keras.models.Sequential([
-            tf.keras.layers.Embedding(input_dim = self.max_tokens, output_dim = 128),
-            tf.keras.layers.GlobalAveragePooling1D(),
-            tf.keras.layers.Dense(64, activation = "relu"),
-            tf.keras.layers.Dense(15, activation = "softmax")
+        num_classes = len(self.label_encoder.classes_)
+        vocab_size  = X_train.shape[1]
+
+        model = tf.keras.Sequential([
+            tf.keras.layers.Input(shape=(vocab_size,)),
+            tf.keras.layers.Dense(
+                hidden_units, activation="relu",
+                kernel_regularizer=tf.keras.regularizers.l2(l2)
+            ),
+            tf.keras.layers.Dropout(0.2),
+            tf.keras.layers.Dense(num_classes, activation="softmax")
         ])
-   
 
         model.compile(
-            loss = "sparse_categorical_crossentropy",
-            optimizer = "adam",
-            metrics = ["accuracy"]
+            optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+            loss="sparse_categorical_crossentropy",
+            metrics=["accuracy"]
         )
 
-        history = model.fit(
-            self.data[0],
-            validation_data = self.data[1],
-            epochs = 50
-        
-        )
-        #print(history.history)
-        model.save("models/NN_model.keras")
-        
-    def eval_model(self):   
-        train_results = self.model.evaluate(self.data[0])
-        test_results = self.model.evaluate(self.data[1])
-        print("DNN Train Loss, DNN Train Accuracy:", train_results) 
-        print("DNN Test Loss, DNN Test Accuracy:", test_results)
-        
+        callbacks = [
+            tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=3, restore_best_weights=True)
+        ]
 
-    
+        model.fit(
+            X_train, y_train,
+            validation_data=(X_val, y_val),
+            epochs=epochs,
+            batch_size=batch_size,
+            callbacks=callbacks,
+            verbose=2
+        )
+
+        Path(os.path.dirname(self.model_path) or ".").mkdir(parents=True, exist_ok=True)
+        model.save(self.model_path)
+        self.model = model
+
+        # (Optional) also persist the vectorizer + label encoder to reuse at inference
+        joblib.dump(
+            {"vectorizer": self.vectorizer, "label_encoder": self.label_encoder},
+            os.path.join(os.path.dirname(self.model_path), "NN_vectorizer_le.pkl")
+        )
+
+    def _ensure_model_loaded(self):
+        if isinstance(self.model, tf.keras.Model):
+            return
+        path = self.model if isinstance(self.model, (str, os.PathLike)) else self.model_path
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Model file not found: {path}. Train first or set a correct path.")
+        self.model = tf.keras.models.load_model(path)
+        # Try to load vectorizer/encoder if saved
+        aux = os.path.join(os.path.dirname(path), "NN_vectorizer_le.pkl")
+        if os.path.exists(aux):
+            bundle = joblib.load(aux)
+            self.vectorizer = bundle.get("vectorizer", self.vectorizer)
+            self.label_encoder = bundle.get("label_encoder", self.label_encoder)
+
+    def eval_model(self, detailed_report=True):
+        """
+        Use SAME metrics style as LR:
+        - Print train and validation accuracy via sklearn's accuracy_score
+        - Print classification_report with target_names aligned (handles missing classes)
+        """
+        if not self.data:
+            raise RuntimeError("Call preprocess() before eval_model().")
+        self._ensure_model_loaded()
+
+        (X_train_sparse, y_train), (X_test_sparse, y_test) = self.data
+        X_train = X_train_sparse.toarray().astype("float32")
+        X_test  = X_test_sparse.toarray().astype("float32")
+
+        # Predictions
+        y_train_pred = self.model.predict(X_train, verbose=0).argmax(axis=1)
+        y_test_pred  = self.model.predict(X_test,  verbose=0).argmax(axis=1)
+
+        print("-------------------------")
+        print("Neural Network Accuracy")
+
+        # LR-style accuracy
+        print(f"Train accuracy: {accuracy_score(y_train, y_train_pred):.4f}")
+        print(f"Validation/Test accuracy: {accuracy_score(y_test, y_test_pred):.4f}")
+
+        if not detailed_report:
+            return
+
+        all_labels = np.arange(len(self.label_encoder.classes_))
+        print("\nClassification report (validation):\n",
+              classification_report(
+                  y_test, y_test_pred,
+                  labels=all_labels,
+                  target_names=self.label_encoder.classes_,
+                  zero_division=0
+              ))
+
+        # Optional: indicate any labels missing in test
+        missing = set(all_labels) - set(np.unique(y_test))
+        if missing:
+            print("Classes missing in test set:",
+                  [self.label_encoder.classes_[i] for i in sorted(missing)])
+
+    # Convenience: predict labels for raw texts
+    def predict_texts(self, texts):
+        self._ensure_model_loaded()
+        X = self.vectorizer.transform(texts).toarray().astype("float32")
+        y_pred = self.model.predict(X, verbose=0).argmax(axis=1)
+        return self.label_encoder.inverse_transform(y_pred)
 # Decision Tree Model
     ## add predict
     ## standardize preprocess
@@ -176,18 +250,37 @@ class MachineModelTwo():
         pickle.dump(model, dt_file)
         dt_file.close()
 
-    def eval_model(self): 
-        train_vectors, train_labels = self.data[0]
-        test_vectors, test_labels = self.data[1]
+    def eval_model(self, detailed_report=True):
+        if not self.data or self.model is None:
+            raise RuntimeError("Call preprocess() and train_model() before eval_model().")
 
-        train_predictions = self.model.predict(train_vectors)
-        test_predictions = self.model.predict(test_vectors)
-        
-        train_acc = accuracy_score(train_labels, train_predictions)
-        test_acc = accuracy_score(test_labels, test_predictions)
+        (train_vectors, train_labels), (test_vectors, test_labels) = self.data
 
-        print(f"DT Training accuracy: {train_acc:.4f}")
-        print(f"DT Test accuracy: {test_acc:.4f}")
+        train_preds = self.model.predict(train_vectors)
+        test_preds = self.model.predict(test_vectors)
+
+        print("-------------------------")
+        print("Decision Tree Accuracy")
+
+        print(f"DT Train accuracy: {accuracy_score(train_labels, train_preds):.4f}")
+        print(f"DT Validation/Test accuracy: {accuracy_score(test_labels, test_preds):.4f}")
+
+        if not detailed_report:
+            return
+
+        all_labels = np.arange(len(self.label_encoder.classes_))
+        print("\nClassification report (validation):\n",
+              classification_report(
+                  test_labels, test_preds,
+                  labels=all_labels,
+                  target_names=self.label_encoder.classes_,
+                  zero_division=0
+              ))
+
+        missing = set(all_labels) - set(np.unique(test_labels))
+        if missing:
+            print("Classes missing in test set:",
+                  [self.label_encoder.classes_[i] for i in sorted(missing)])
 
 # Logistic Regression model
 class MachineModelThree:
