@@ -1,13 +1,15 @@
 import os
 from pathlib import Path
 
+import joblib
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn import tree  
-from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.metrics import accuracy_score, classification_report
 import pickle
 
@@ -189,21 +191,65 @@ class MachineModelTwo():
 
 # Logistic Regression model
 class MachineModelThree:
-    def __init__(self, dataset_location, model=None, max_tokens=50000, sequence_length=50, model_path="models/LR_model.keras"):
+    def __init__(
+        self,
+        dataset_location,
+        model=None,
+        max_features=3000,
+        model_path="models/LR_model.pkl",
+    ):
         self.dataset_location = dataset_location
         self.model = model
         self.model_path = model_path
         self.label_encoder = LabelEncoder()
-        self.data = []
-        self.sequence_length = sequence_length
+        self.data = []  # [(X_train, y_train), (X_test, y_test)]
 
-        # Integer token IDs -> Embedding model
-        self.vectorize_layer = tf.keras.layers.TextVectorization(
-            max_tokens=max_tokens,
-            output_mode="int",
-            output_sequence_length=sequence_length
+        # Bag-of-Words (TF-IDF) vectorizer
+        self.vectorizer = TfidfVectorizer(
+            max_features=max_features,
+            ngram_range=(1, 2),          # unigrams + bigrams
+            stop_words=None,             # keep function words
+            token_pattern=r"(?u)\b\w+\b",
+            lowercase=True,
+            min_df=2,
+            max_df=0.95,
         )
 
+    # ---------- Loading ----------
+    def _ensure_model_loaded(self):
+        # Already a fitted sklearn model in memory?
+        if isinstance(self.model, LogisticRegression):
+            return
+
+        path = self.model if isinstance(self.model, (str, os.PathLike)) else self.model_path
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Model file not found: {path}. Train first or set a correct path.")
+
+        loaded = joblib.load(path)
+
+        # Case A: full bundle dict
+        if isinstance(loaded, dict):
+            if "model" not in loaded:
+                raise ValueError(f"Loaded dict from {path} is missing the 'model' key.")
+            self.model = loaded["model"]
+            if "vectorizer" in loaded and loaded["vectorizer"] is not None:
+                self.vectorizer = loaded["vectorizer"]
+            if "label_encoder" in loaded and loaded["label_encoder"] is not None:
+                self.label_encoder = loaded["label_encoder"]
+            return
+
+        # Case B: raw sklearn model (backward compatibility)
+        if isinstance(loaded, LogisticRegression):
+            self.model = loaded
+            # vectorizer/label_encoder remain as currently set in self (likely unfitted)
+            return
+
+        raise TypeError(
+            f"Unsupported artifact loaded from {path}: {type(loaded)}. "
+            f"Expected dict bundle or LogisticRegression."
+        )
+
+    # ---------- Data ----------
     def preprocess(self):
         with open(self.dataset_location, "r", encoding="utf-8") as f:
             lines = [ln.strip() for ln in f if ln.strip()]
@@ -214,8 +260,9 @@ class MachineModelThree:
             dialog_act, sentence = (parts + [""])[:2]
             pairs.append((dialog_act, sentence))
 
-        df = pd.DataFrame(pairs, columns=["dialog_act", "sentence"])
-        df = df.drop_duplicates(subset=["dialog_act", "sentence"]).reset_index(drop=True)
+        df = pd.DataFrame(pairs, columns=["dialog_act", "sentence"]) \
+               .drop_duplicates(subset=["dialog_act", "sentence"]) \
+               .reset_index(drop=True)
 
         try:
             train_df, test_df = train_test_split(
@@ -224,104 +271,89 @@ class MachineModelThree:
         except ValueError:
             train_df, test_df = train_test_split(df, test_size=0.15, random_state=42)
 
-        y_train = self.label_encoder.fit_transform(train_df["dialog_act"].values)
-        y_test  = self.label_encoder.transform(test_df["dialog_act"].values)
+        # LabelEncoder: fit only if not already fitted
+        if hasattr(self.label_encoder, "classes_"):
+            y_train = self.label_encoder.transform(train_df["dialog_act"].values)
+            y_test  = self.label_encoder.transform(test_df["dialog_act"].values)
+        else:
+            y_train = self.label_encoder.fit_transform(train_df["dialog_act"].values)
+            y_test  = self.label_encoder.transform(test_df["dialog_act"].values)
 
-        self.vectorize_layer.adapt(train_df["sentence"].values)
+        # Vectorizer: fit only if not already fitted
+        if getattr(self.vectorizer, "vocabulary_", None) is None:
+            self.vectorizer.fit(train_df["sentence"].values)
 
-        AUTOTUNE = tf.data.AUTOTUNE
+        X_train = self.vectorizer.transform(train_df["sentence"].values)
+        X_test  = self.vectorizer.transform(test_df["sentence"].values)
 
-        train_data = (tf.data.Dataset
-            .from_tensor_slices((train_df["sentence"].values, y_train))
-            .shuffle(len(train_df), seed=42, reshuffle_each_iteration=True)
-            .batch(32)
-            .map(lambda x, y: (self.vectorize_layer(x), y))
-            .cache()
-            .prefetch(AUTOTUNE))
+        self.data = [(X_train, y_train), (X_test, y_test)]
 
-        test_data = (tf.data.Dataset
-            .from_tensor_slices((test_df["sentence"].values, y_test))
-            .batch(32)
-            .map(lambda x, y: (self.vectorize_layer(x), y))
-            .cache()
-            .prefetch(AUTOTUNE))
-
-        self.data = [train_data, test_data]
-        self.y_train = y_train
-        self.y_test = y_test
-
-    def train_model(self, epochs=10):
+    # ---------- Training ----------
+    def train_model(self, C=1.0, max_iter=1000):
         if not self.data:
             raise RuntimeError("Call preprocess() before train_model().")
-        train_data, test_data = self.data
 
-        num_classes = len(self.label_encoder.classes_)
-        vocab_size  = self.vectorize_layer.vocabulary_size()
-        seq_len     = self.sequence_length
-        emb_dim     = 128
+        (X_train, y_train), _ = self.data
 
-        model = tf.keras.Sequential([
-            tf.keras.layers.Input(shape=(seq_len,)),
-            tf.keras.layers.Embedding(input_dim=vocab_size, output_dim=emb_dim),
-            tf.keras.layers.GlobalAveragePooling1D(),
-            tf.keras.layers.Dense(num_classes, activation="softmax")
-        ])
-
-        model.compile(optimizer="adam",
-                      loss="sparse_categorical_crossentropy",
-                      metrics=["accuracy"])
-
-        callbacks = [
-            tf.keras.callbacks.EarlyStopping(monitor="val_accuracy", patience=2, restore_best_weights=True)
-        ]
-
-        model.fit(train_data, validation_data=test_data, epochs=epochs, callbacks=callbacks, verbose=2)
-
-        # save properly (NO pickle)
-        Path(os.path.dirname(self.model_path) or ".").mkdir(parents=True, exist_ok=True)
-        model.save(self.model_path)
-
+        model = LogisticRegression(
+            penalty="l2",
+            C=C,
+            solver="lbfgs",      # multinomial by default as of sklearn 1.5+
+            max_iter=max_iter
+        )
+        model.fit(X_train, y_train)
         self.model = model
 
-    def _ensure_model_loaded(self):
-        if isinstance(self.model, tf.keras.Model):
-            return
-        if self.model is None or isinstance(self.model, (str, os.PathLike)):
-            path = self.model if isinstance(self.model, (str, os.PathLike)) else self.model_path
-            if not os.path.exists(path):
-                raise FileNotFoundError(f"Model file not found: {path}. Train first or set a correct path.")
-            self.model = tf.keras.models.load_model(path)
-            return
-        raise TypeError(f"self.model is not a Keras model. Got: {type(self.model)}. "
-                        f"Did you assign a file handle? Use tf.keras.models.load_model(...) instead.")
+        # Save bundle (recommended)
+        bundle = {
+            "model": self.model,
+            "vectorizer": self.vectorizer,
+            "label_encoder": self.label_encoder,
+        }
+        Path(os.path.dirname(self.model_path) or ".").mkdir(parents=True, exist_ok=True)
+        joblib.dump(bundle, self.model_path)
+        print(f"Model saved at: {self.model_path}")
 
+    # ---------- Evaluation ----------
     def eval_model(self, detailed_report=True):
-
         if not self.data:
             raise RuntimeError("Call preprocess() before eval_model().")
 
-        self._ensure_model_loaded()
+        # Ensure we have a model (and optionally vectorizer/encoder) loaded
+        try:
+            self._ensure_model_loaded()
+        except FileNotFoundError:
+            # No saved model yet — that's fine if you just trained in this session
+            if not isinstance(self.model, LogisticRegression):
+                raise
 
-        test_loss, test_acc = self.model.evaluate(self.data[1], verbose=0)
-        print(f"Test  Loss: {test_loss:.4f}  |  Test  Acc: {test_acc:.4f}")
+        (X_train, y_train), (X_test, y_test) = self.data
+
+        y_train_pred = self.model.predict(X_train)
+        y_test_pred  = self.model.predict(X_test)
+        print("-------------------------")
+        print("Logistic Regression Accuracy")
+
+        print(f"Train accuracy: {accuracy_score(y_train, y_train_pred):.4f}")
+        print(f"Validation/Test accuracy: {accuracy_score(y_test, y_test_pred):.4f}")
 
         if not detailed_report:
             return
 
-        y_pred_probs = self.model.predict(self.data[1], verbose=0)
-        y_pred = y_pred_probs.argmax(axis=1)
-        y_true = self.y_test
-
         all_labels = np.arange(len(self.label_encoder.classes_))
-        print("\nClassification report Logistic Regression:\n",
+        print("\nClassification report (validation):\n",
               classification_report(
-                  y_true, y_pred,
+                  y_test, y_test_pred,
                   labels=all_labels,
                   target_names=self.label_encoder.classes_,
                   zero_division=0
               ))
 
-
+        # Optional: show any labels missing in test
+        missing = set(all_labels) - set(np.unique(y_test))
+        if missing:
+            print("Classes missing in test set:",
+                  [self.label_encoder.classes_[i] for i in sorted(missing)])
 """
 if __name__ == "__main__":
     dataset_location = "dialog_acts.dat"
