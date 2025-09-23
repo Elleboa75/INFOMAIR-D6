@@ -223,6 +223,7 @@ class DialogManager:
             elif dialog_act == "bye" or dialog_act == "ack" or  dialog_act == "affirm" :
                 return "end", self.templates["goodbye"]
             else:
+                # if the user does not accept the suggestion, provide another one if available
                 suggestions = self.get_suggestions()
                 if len(suggestions) > 0 and len(suggestions) > self.suggest_counter:
                     suggest = suggestions.iloc[self.suggest_counter]['restaurantname']
@@ -250,6 +251,7 @@ class DialogManager:
         return current_state, "Could you please rephrase?"
     
     def next_missing_state(self):
+        """ Main flow of the dialog, checks what preference is missing and acts accordingly """
         # Check the next state which is not filled in yet
         if self.preferences['area'] is None:
             return "ask_area", self.templates["ask_area"]
