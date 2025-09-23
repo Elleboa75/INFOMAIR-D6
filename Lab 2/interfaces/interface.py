@@ -60,7 +60,6 @@ class DialogManagerBase(ABC):
         """Main loop (side-effecting); prints/prompts until dialog ends."""
         pass
 
-
 class RestaurantMatcherBase(ABC):
     """
     Abstract base describing the public API of a restaurant matcher.
