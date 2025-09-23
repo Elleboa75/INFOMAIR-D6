@@ -12,9 +12,6 @@ from sklearn.metrics import accuracy_score, classification_report
 import pickle
 
 # Neural Network Model
-    ## add predict
-    ## standardize preprocess
-    ## standardize eval
 class MachineModelOne():
     def __init__(self,
                  dataset_location,
@@ -33,7 +30,6 @@ class MachineModelOne():
             output_sequence_length = sequence_length
         )       
         self.model = model
-
 
     def preprocess(self):
         with open(self.dataset_location, "r", encoding="utf-8") as f:
@@ -74,8 +70,8 @@ class MachineModelOne():
         test_data = test_data.map(lambda x, y: (self.vectorize_layer(x), y))
 
         self.data.append(train_data)
-        self.data.append(test_data)
-
+        self.data.append(test_data)        
+    
     def train_model(self):
         model = tf.keras.models.Sequential([
             tf.keras.layers.Embedding(input_dim = self.max_tokens, output_dim = 128),
@@ -84,7 +80,6 @@ class MachineModelOne():
             tf.keras.layers.Dense(15, activation = "softmax")
         ])
    
-
         model.compile(
             loss = "sparse_categorical_crossentropy",
             optimizer = "adam",
@@ -95,16 +90,83 @@ class MachineModelOne():
             self.data[0],
             validation_data = self.data[1],
             epochs = 50
-        
         )
-        #print(history.history)
+        
+        self.model = model
+        
+        # Create models directory if it doesn't exist
+        Path("models").mkdir(exist_ok=True)
+        
+        # Save model
         model.save("models/NN_model.keras")
+        
+        # Save preprocessing components
+        with open("models/NN_label_encoder.pkl", "wb") as f:
+            pickle.dump(self.label_encoder, f)
+        
+        # Save vectorization layer weights
+        with open("models/NN_vectorizer_config.pkl", "wb") as f:
+            pickle.dump({
+                'vocabulary': self.vectorize_layer.get_vocabulary(),
+                'max_tokens': self.max_tokens,
+                'sequence_length': self.sequence_length
+            }, f)
+        
+    def _load_preprocessing_components(self):
+        """Load the preprocessing components needed for prediction"""
+        if not hasattr(self, '_preprocessing_loaded'):
+            # Load label encoder
+            with open("models/NN_label_encoder.pkl", "rb") as f:
+                self.label_encoder = pickle.load(f)
+            
+            # Load and setup vectorizer
+            with open("models/NN_vectorizer_config.pkl", "rb") as f:
+                config = pickle.load(f)
+            
+            self.vectorize_layer = tf.keras.layers.TextVectorization(
+                max_tokens=config['max_tokens'],
+                output_mode="int",
+                output_sequence_length=config['sequence_length']
+            )
+            self.vectorize_layer.set_vocabulary(config['vocabulary'])
+            
+            self._preprocessing_loaded = True
+    
+    def predict(self, sentence):
+        """Predict dialog act for a single sentence"""
+        if self.model is None:
+            if not os.path.exists("models/NN_model.keras"):
+                raise FileNotFoundError("Model not found. Train the model first.")
+            self.model = tf.keras.models.load_model("models/NN_model.keras")
+        
+        self._load_preprocessing_components()
+        
+        sentence_tensor = tf.constant([sentence])  
+        vectorized_sentence = self.vectorize_layer(sentence_tensor)
+        
+
+        prediction_probs = self.model.predict(vectorized_sentence, verbose=0)
+        predicted_class_idx = np.argmax(prediction_probs[0])
+        
+        predicted_label = self.label_encoder.inverse_transform([predicted_class_idx])[0]
+        confidence = float(prediction_probs[0][predicted_class_idx])
+        
+        return {
+            'predicted_dialog_act': predicted_label,
+            'confidence': confidence,
+            'all_probabilities': {
+                label: float(prob) for label, prob in 
+                zip(self.label_encoder.classes_, prediction_probs[0])
+            }
+        }
         
     def eval_model(self):   
         train_results = self.model.evaluate(self.data[0])
         test_results = self.model.evaluate(self.data[1])
         print("DNN Train Loss, DNN Train Accuracy:", train_results) 
         print("DNN Test Loss, DNN Test Accuracy:", test_results)
+        
+
         
 
     
