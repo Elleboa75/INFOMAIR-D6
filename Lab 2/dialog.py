@@ -73,10 +73,12 @@ class DialogManager:
             "ask_pricerange": "What price range?",
             "confirm_correction": "I did not recognize '{given}'. Did you mean '{corrected}'?",
             "no_match_error": "I couldn't find a match for '{value}'. Could you please rephrase?",
+            "contact_info": "Here's the contact information for {restaurant}: Phone: {phone}, Address: {address}",
             "suggest": "Based on your preferences, I found {count} restaurants. Here are some options: {restaurants}",
             "goodbye": "Thank you and goodbye!"
         }
         self.suggest_counter = 0
+        self.last_suggested = None
         
     def classify_dialog_act(self, utterance):
         # Classify the dialog act using the baseline model --> should be change to the NN model
@@ -143,6 +145,7 @@ class DialogManager:
                 # Swap state, print system message
         utterance = user_utterance.lower()
         dialog_act = self.classify_dialog_act(utterance)
+        print(dialog_act)
         if current_state == "init":
             if dialog_act == "hello":
                 return "init", self.templates["welcome"]
@@ -214,15 +217,18 @@ class DialogManager:
                 return "ask_pricerange", self.templates["ask_pricerange"]
                 
         elif current_state == "suggest":
-            if dialog_act == "bye" or dialog_act == "ack" or  dialog_act == "affirm" :
+            if dialog_act == "request":
+                if self.last_suggested:
+                    return self.provide_contact_info(self.last_suggested)
+            elif dialog_act == "bye" or dialog_act == "ack" or  dialog_act == "affirm" :
                 return "end", self.templates["goodbye"]
             else:
                 suggestions = self.get_suggestions()
                 if len(suggestions) > 0 and len(suggestions) > self.suggest_counter:
                     suggest = suggestions.iloc[self.suggest_counter]['restaurantname']
+                    self.last_suggested = suggest
                     self.suggest_counter += 1
                     return 'suggest', f'How about {suggest}?'
-
                 else:    
                     return 'no_alts', "Sorry, I couldn't find any restaurants matching your preferences. Would you like to modify them?"
                
@@ -258,6 +264,7 @@ class DialogManager:
             suggestions = self.get_suggestions()
             if len(suggestions) > 0:
                 suggest = suggestions.iloc[self.suggest_counter]['restaurantname']
+                self.last_suggested = suggest
                 self.suggest_counter += 1
                 return 'suggest', f'How about {suggest}?'
             else:    
@@ -277,6 +284,21 @@ class DialogManager:
         price_pref = self.check_any(self.preferences['pricerange'], 'pricerange')
         suggestions = self.df.loc[(self.df['pricerange'].isin(price_pref)) & (self.df['area'].isin(area_pref)) & (self.df['food'].isin(food_pref))]
         return suggestions
+    
+    def provide_contact_info(self, restaurant_name):
+        restaurant_row = self.df[self.df['restaurantname'].str.lower() == restaurant_name.lower()]
+        
+        if not restaurant_row.empty:
+            restaurant = restaurant_row.iloc[0]
+            contact_info = []
+            
+            if 'phone' in restaurant and pd.notna(restaurant['phone']):
+                contact_info.append(f"Phone: {restaurant['phone']}")
+            if 'addr' in restaurant and pd.notna(restaurant['addr']):
+                contact_info.append(f"Address: {restaurant['addr']}")
+              
+            if contact_info:
+                return "suggest", f"Here's the contact information for {restaurant_name}: {', '.join(contact_info)}"
 
     
     def run_dialog(self):
