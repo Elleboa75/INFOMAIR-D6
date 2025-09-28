@@ -35,7 +35,40 @@ class DialogManager(DialogManagerBase):
         self.templates = self.config.get('templates', {})
         states = self.config.get('states', {})
         self.slot_states = states.get('slot_states', {})
+        # --- NEW: automatically add extra slot states if the df contains those columns
+        # minimal additions: add ask_food_quality, ask_crowdedness, ask_length_of_stay
+        extra_slots = [
+            ('ask_food_quality', 'food_quality'),
+            ('ask_crowdedness', 'crowdedness'),
+            ('ask_length_of_stay', 'length_of_stay'),
+        ]
+        for state_name, slot_name in extra_slots:
+            if slot_name in self.df.columns and slot_name not in self.slot_states.values():
+                # add to slot_states so dialog will prompt for them
+                self.slot_states[state_name] = slot_name
+                # add simple default template if none present
+                if f"ask_{slot_name}" not in self.templates:
+                    # human-friendly wording for length_of_stay
+                    prompt = "How long do you plan to stay?" if slot_name == 'length_of_stay' else f"What {slot_name.replace('_', ' ')} would you prefer?"
+                    self.templates[f"ask_{slot_name}"] = prompt
+
+        # original slot order based on keys of slot_states
         self.slot_order = states.get('slot_order', list(self.slot_states.keys()))
+        # if slot_order from config doesn't include newly added states, recompute so new states are asked later
+        # keep the original order for existing ones, then append any new ones
+        config_order = states.get('slot_order', None)
+        if config_order is None:
+            # simply use the keys order (already set)
+            self.slot_order = list(self.slot_states.keys())
+        else:
+            # preserve configured order, append any extra states that were added above
+            ordered = [s for s in config_order if s in self.slot_states]
+            for s in self.slot_states:
+                if s not in ordered:
+                    ordered.append(s)
+            self.slot_order = ordered
+        # --- END NEW
+
         self.suggest_state = states.get('suggest_state', 'suggest')
         self.no_alts_state = states.get('no_alts_state', 'no_alts')
         self.end_state = states.get('end_state', 'end')
@@ -43,7 +76,7 @@ class DialogManager(DialogManagerBase):
 
         # dialog bookkeeping
         self.current_state = self.init_state
-        # ensure preferences always has the expected keys (area/food/pricerange)
+        # ensure preferences always has the expected keys (dynamically include any new slots)
         self.preferences = {v: None for v in self.slot_states.values()}
         self.text_columns = list(self.slot_states.values())
         self.suggest_counter = 0
@@ -173,8 +206,10 @@ class DialogManager(DialogManagerBase):
                     tokens = utterance.strip().split()
                     if len(tokens) == 1 and tokens[0]:
                         tok = tokens[0].lower()
-                        # priority: food, area, pricerange
-                        for col in ['food', 'area', 'pricerange']:
+                        # priority: food, area, pricerange (preserve existing priority),
+                        # then any of the new text slots if present
+                        priority_cols = [c for c in ['food', 'area', 'pricerange', 'food_quality', 'crowdedness', 'length_of_stay'] if c in self.text_columns]
+                        for col in priority_cols:
                             if col in self.text_columns and self.df[col].str.contains(rf"\b{re.escape(tok)}\b", case=False, na=False).any():
                                 extracted[col] = tok
                                 break
@@ -212,14 +247,16 @@ class DialogManager(DialogManagerBase):
                 return self.next_missing_state()[0], self.templates.get('reset_confirm', 'Restarting') + " " + self.templates.get(self.next_missing_state()[0], '')
 
             if slot is None and value == 'any':
-                for s in ['pricerange', 'food', 'area']:
+                # --- UPDATED: iterate over all text slots, not only area/food/pricerange
+                for s in self.text_columns:
                     if self.preferences.get(s) not in [None, 'any']:
                         self.preferences[s] = 'any'
                         self.suggest_counter = 0
                         return self.next_missing_state()
                 return self.no_alts_state, self.templates.get('ask_change_slot', 'Which slot to change?')
 
-            if slot in ['area', 'food', 'pricerange']:
+            # --- UPDATED: allow changing any recognized slot (not just area/food/pricerange)
+            if slot in self.text_columns:
                 if value is None:
                     self.preferences[slot] = None
                     self.suggest_counter = 0

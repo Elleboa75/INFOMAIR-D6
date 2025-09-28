@@ -30,7 +30,7 @@ class SlotExtractor(SlotExtractorBase):
         # fallback to a safe default if not provided
         if not raw_patterns:
             raw_patterns = {
-                'food': [], 'area': [], 'pricerange': []
+                'food': [], 'area': [], 'pricerange': [], 'food_quality': [], 'crowdedness': [], 'length_of_stay' : []
             }
 
         for slot, slot_list in raw_patterns.items():
