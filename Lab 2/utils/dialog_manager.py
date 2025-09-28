@@ -29,9 +29,10 @@ class DialogManager(DialogManagerBase):
                  sugg_engine: SuggestionEngine = None,
                  parser: ChangeRequestParser = None,
                  all_caps = False,
-                 change_preference = True,
                  allow_restarts = True,
-                 delay = 0):
+                 delay = 0,
+                 formal = True):
+        
         # data + config
         self.df = df
         self.config_path = config_path
@@ -41,7 +42,11 @@ class DialogManager(DialogManagerBase):
         self.delay = delay
 
         # templates and states
-        self.templates = self.config.get('templates', {})
+        if formal:
+            self.templates = self.config.get('formal_templates', {})
+        else:
+            self.templates = self.config.get("informal_templates", {})
+            
         states = self.config.get('states', {})
         self.slot_states = states.get('slot_states', {})
         # --- NEW: automatically add extra slot states if the df contains those columns
