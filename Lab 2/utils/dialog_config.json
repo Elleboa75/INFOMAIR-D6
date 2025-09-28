@@ -4,6 +4,9 @@
     "ask_area": "Could you please specify which area you would prefer?",
     "ask_food": "What type of cuisine would you like to enjoy?",
     "ask_pricerange": "What price range would be suitable for you?",
+    "ask_foodquality": "What food quality would you prefer?",
+    "ask_crowdedness": "What crowdedness level would you prefer?",
+    "ask_lengthstay": "How long do you plan to stay?",
     "confirm_correction": "I apologize, but I did not recognize '{given}'. Did you perhaps mean '{corrected}'?",
     "no_match_error": "I was unable to locate a match for '{value}'. Would you be so kind as to rephrase your request?",
     "additional_req": "Do you have any additional requirements or preferences?",
@@ -21,6 +24,9 @@
     "ask_area": "What area are you thinking?",
     "ask_food": "What kind of food are you craving?",
     "ask_pricerange": "What's your budget like?",
+    "ask_foodquality": "How's the food quality matter to you?",
+    "ask_crowdedness": "Do you care about how busy it is?",
+    "ask_lengthstay": "How long you planning to hang out?",
     "confirm_correction": "Hmm, I didn't catch '{given}'. Did you mean '{corrected}'?",
     "no_match_error": "Couldn't find anything for '{value}'. Can you try saying it differently?",
     "additional_req": "Got any other must-haves?",
@@ -43,19 +49,28 @@
     "suggest_state": "suggest",
     "no_alts_state": "no_alts",
     "end_state": "end",
-    "init_state": "init"
+    "init_state": "init",
+    "additional_req_state": "add_req"
   },
   "patterns": {
-  "food": [
-    {"pattern": "(\\\\w+)\\\\s+food", "group": 1},
-    {"pattern": "serving\\\\s+(\\\\w+)", "group": 1}
-  ],
-  "area": [
-    {"pattern": "in\\\\s+the\\\\s+(\\\\w+)", "group": 1}
-  ],
-  "pricerange": [
-    {"pattern": "(cheap|expensive|moderate)", "group": 0}
-  ]
+    "food": [
+      {"pattern": "(\\\\w+)\\\\s+food", "group": 1},
+      {"pattern": "serving\\\\s+(\\\\w+)", "group": 1}
+    ],
+    "area": [
+      {"pattern": "in\\\\s+the\\\\s+(\\\\w+)", "group": 1}
+    ],
+    "pricerange": [
+      {"pattern": "(cheap|expensive|moderate)", "group": 0}
+    ],
+    "foodquality": [
+      {"pattern": "(bad|average|good)", "group": 0}
+    ],
+    "crowdedness": [
+      {"pattern": "(not busy|busy)", "group": 0}
+    ],
+    "lengthstay": [
+      {"pattern": "(short|medium|long)", "group": 0}
+    ]
   }
-
 }

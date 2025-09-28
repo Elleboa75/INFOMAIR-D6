@@ -53,39 +53,26 @@ class DialogManager(DialogManagerBase):
         # --- NEW: automatically add extra slot states if the df contains those columns
         # minimal additions: add ask_food_quality, ask_crowdedness, ask_length_of_stay
         extra_slots = [
-            ('ask_food_quality', 'food_quality'),
+            ('ask_food_quality', 'foodquality'),
             ('ask_crowdedness', 'crowdedness'),
-            ('ask_length_of_stay', 'length_of_stay'),
+            ('ask_length_of_stay', 'lengthstay'),
         ]
         for state_name, slot_name in extra_slots:
             if slot_name in self.df.columns and slot_name not in self.slot_states.values():
                 # add to slot_states so dialog will prompt for them
                 self.slot_states[state_name] = slot_name
-                # add simple default template if none present
-                if f"ask_{slot_name}" not in self.templates:
-                    # human-friendly wording for length_of_stay
-                    prompt = "How long do you plan to stay?" if slot_name == 'length_of_stay' else f"What {slot_name.replace('_', ' ')} would you prefer?"
-                    self.templates[f"ask_{slot_name}"] = prompt
 
-        # original slot order based on keys of slot_states
-        self.slot_order = states.get('slot_order', list(self.slot_states.keys()))
-        # if slot_order from config doesn't include newly added states, recompute so new states are asked later
-        # keep the original order for existing ones, then append any new ones
-        config_order = states.get('slot_order', None)
-        if config_order is None:
-            # simply use the keys order (already set)
-            self.slot_order = list(self.slot_states.keys())
-        else:
-            # preserve configured order, append any extra states that were added above
-            ordered = [s for s in config_order if s in self.slot_states]
-            for s in self.slot_states:
-                if s not in ordered:
-                    ordered.append(s)
-            self.slot_order = ordered
+        # separate basic slots from extra slots
+        self.basic_slots = ['ask_area', 'ask_food', 'ask_pricerange']
+        self.extra_slots = [s for s in self.slot_states.keys() if s not in self.basic_slots]
+
+        # slot order: basic slots first, then extra slots
+        self.slot_order = [s for s in self.basic_slots if s in self.slot_states] + self.extra_slots
         # --- END NEW
 
         self.suggest_state = states.get('suggest_state', 'suggest')
         self.no_alts_state = states.get('no_alts_state', 'no_alts')
+        self.additional_req_state = states.get('additional_req_state', 'add_req')
         self.end_state = states.get('end_state', 'end')
         self.init_state = states.get('init_state', 'init')
 
@@ -95,6 +82,7 @@ class DialogManager(DialogManagerBase):
         self.preferences = {v: None for v in self.slot_states.values()}
         self.text_columns = list(self.slot_states.values())
         self.suggest_counter = 0
+        self.additional_req_asked = False  # Track if we've asked for additional requirements
 
         # components (allow dependency injection for testing)
         self.extractor = extractor or SlotExtractor.from_config_file(config_path)
@@ -162,6 +150,18 @@ class DialogManager(DialogManagerBase):
         return "inform"
 
     def next_missing_state(self) -> Tuple[str, str]:
+        # Check if basic slots (area, food, pricerange) are all filled
+        basic_slots_filled = all(
+            self.preferences.get(self.slot_states.get(state)) is not None
+            for state in self.basic_slots
+            if state in self.slot_states
+        )
+
+        # If basic slots are filled and we have extra slots available and haven't asked yet
+        if basic_slots_filled and self.extra_slots and not self.additional_req_asked:
+            return self.additional_req_state, self.templates.get('additional_req', "Do you have any additional requirements?")
+
+        # Check for missing slots in order (basic first, then extra)
         for state in self.slot_order:
             slot = self.slot_states.get(state)
             if slot is None:
@@ -179,7 +179,7 @@ class DialogManager(DialogManagerBase):
 
     def _handle_slot_state(self, state: str, utterance: str, dialog_act: str) -> Tuple[str, str]:
         slot = self.slot_states[state]
-        if dialog_act == 'inform':
+        if dialog_act in ['inform', 'null']: ## added because the dialog act makes mistakes
             if 'any' in (utterance or '').split():
                 self.preferences[slot] = 'any'
                 return self.next_missing_state()
@@ -241,6 +241,28 @@ class DialogManager(DialogManagerBase):
         if current_state in self.slot_states:
             return self._handle_slot_state(current_state, user_utterance, dialog_act)
 
+        if current_state == self.additional_req_state:
+            self.additional_req_asked = True 
+            if dialog_act in ['affirm', 'ack']:
+                return self.next_missing_state()
+            elif dialog_act in ['negate', 'deny']:
+                # Fill all extra slots with 'any' to skip them
+                for state in self.extra_slots:
+                    slot = self.slot_states.get(state)
+                    if slot and self.preferences.get(slot) is None:
+                        self.preferences[slot] = 'any'
+
+                suggestions = self.sugg_engine.get_suggestions(self.preferences)
+                if len(suggestions) > 0:
+                    suggestion_name = suggestions.iloc[self.suggest_counter % len(suggestions)]['restaurantname']
+                    self.last_suggested = suggestion_name
+                    self.suggest_counter += 1
+                    return self.suggest_state, f"How about {suggestion_name}?"
+                return self.no_alts_state, self.templates.get('no_alts', "I couldn't find matches")
+            else:
+                self.additional_req_asked = False
+                return self.additional_req_state, self.templates.get('additional_req', "Do you have any additional requirements?")
+
         if current_state == self.suggest_state:
             print(dialog_act)
             if dialog_act == "request":
@@ -263,6 +285,7 @@ class DialogManager(DialogManagerBase):
             if dialog_act in ['affirm', 'ack']:
                 self.preferences = {v: None for v in self.slot_states.values()}
                 self.suggest_counter = 0
+                self.additional_req_asked = False
                 return self.next_missing_state()
 
             slot, value = self.parser.parse_change_request(utterance)
@@ -270,6 +293,7 @@ class DialogManager(DialogManagerBase):
                 if self.allow_restart == True:
                     self.preferences = {v: None for v in self.slot_states.values()}
                     self.suggest_counter = 0
+                    self.additional_req_asked = False
                     return self.next_missing_state()[0], self.templates.get('reset_confirm', 'Restarting') + " " + self.templates.get(self.next_missing_state()[0], '')
                 else:
                     return self.no_alts_state, self.templates.get('no_reset','No resets allowed')
