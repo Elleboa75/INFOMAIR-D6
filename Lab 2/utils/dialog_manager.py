@@ -2,6 +2,8 @@ from typing import Tuple, Dict, Any
 import re
 import json
 import os
+import time
+import sys
 
 import pandas as pd
 
@@ -28,13 +30,15 @@ class DialogManager(DialogManagerBase):
                  parser: ChangeRequestParser = None,
                  all_caps = False,
                  change_preference = True,
-                 allow_restarts = True):
+                 allow_restarts = True,
+                 delay = 0):
         # data + config
         self.df = df
         self.config_path = config_path
         self.config = self._load_config(config_path)
         self.all_caps = all_caps
         self.allow_restart = allow_restarts
+        self.delay = delay
 
         # templates and states
         self.templates = self.config.get('templates', {})
@@ -292,6 +296,11 @@ class DialogManager(DialogManagerBase):
 
         return current_state, 'Could you please rephrase?'
 
+    def show_thinking(self):
+        print("Thinking...", end="", flush=True)
+        time.sleep(self.delay)
+        print("\r" + " " * 12 + "\r", end="", flush=True)
+        
     def run_dialog(self):
         if self.all_caps:
             print(self.templates.get('welcome', 'Welcome').upper())
@@ -307,6 +316,8 @@ class DialogManager(DialogManagerBase):
             print(self.preferences)
             self.current_state = next_state
             if self.all_caps:
+                self.show_thinking()
                 print(f"System: {system_response}".upper())
             else:
+                self.show_thinking()
                 print(f"System: {system_response}")
