@@ -8,7 +8,10 @@
     "no_match_error": "I couldn't find a match for '{value}'. Could you please rephrase?",
     "suggest": "Based on your preferences, I found {count} restaurants. Here are some options: {restaurants}",
     "goodbye": "Thank you and goodbye!",
-    "no_alts": "Sorry, I couldn't find any restaurants matching your preferences. Would you like to modify them?"
+    "no_alts": "Sorry, I couldn't find any restaurants matching your preferences. Would you like to modify them?",
+     "ask_change_slot": "No restaurants match your preferences. Which would you like to change: area, food, or price range?",
+    "confirm_change": "Okay—let’s update {slot}. What {slot} would you like?",
+    "reset_confirm": "Alright, let’s start over."
   },
   "states": {
     "slot_states": {
