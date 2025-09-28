@@ -25,11 +25,16 @@ class DialogManager(DialogManagerBase):
                  extractor: SlotExtractor = None,
                  validator: PreferenceValidator = None,
                  sugg_engine: SuggestionEngine = None,
-                 parser: ChangeRequestParser = None):
+                 parser: ChangeRequestParser = None,
+                 all_caps = False,
+                 change_preference = True,
+                 allow_restarts = True):
         # data + config
         self.df = df
         self.config_path = config_path
         self.config = self._load_config(config_path)
+        self.all_caps = all_caps
+        self.allow_restart = allow_restarts
 
         # templates and states
         self.templates = self.config.get('templates', {})
@@ -103,7 +108,7 @@ class DialogManager(DialogManagerBase):
 
         return {
             "templates": {
-    "welcome": "Welcome, what type of restaurant are you looking for!",
+    "welcome": "Hello , welcome to the Cambridge restaurant system? You can ask for restaurants by area , price range or food type . How may I help you?",
     "ask_area": "What area would you prefer?",
     "ask_food": "What kind of food do you want?",
     "ask_pricerange": "What price range?",
@@ -232,6 +237,7 @@ class DialogManager(DialogManagerBase):
                 suggestion_name = suggestions.iloc[self.suggest_counter]['restaurantname']
                 self.suggest_counter += 1
                 return self.suggest_state, f"How about {suggestion_name}?"
+
             return self.no_alts_state, self.templates.get('ask_change_slot', 'No alternatives')
 
         if current_state == self.no_alts_state:
@@ -242,9 +248,13 @@ class DialogManager(DialogManagerBase):
 
             slot, value = self.parser.parse_change_request(utterance)
             if slot == 'restart':
-                self.preferences = {v: None for v in self.slot_states.values()}
-                self.suggest_counter = 0
-                return self.next_missing_state()[0], self.templates.get('reset_confirm', 'Restarting') + " " + self.templates.get(self.next_missing_state()[0], '')
+                if self.allow_restart == True:
+                    self.preferences = {v: None for v in self.slot_states.values()}
+                    self.suggest_counter = 0
+                    return self.next_missing_state()[0], self.templates.get('reset_confirm', 'Restarting') + " " + self.templates.get(self.next_missing_state()[0], '')
+                else:
+                    return self.no_alts_state, self.templates.get('no_reset','No resets allowed')
+
 
             if slot is None and value == 'any':
                 # --- UPDATED: iterate over all text slots, not only area/food/pricerange
@@ -283,7 +293,11 @@ class DialogManager(DialogManagerBase):
         return current_state, 'Could you please rephrase?'
 
     def run_dialog(self):
-        print(self.templates.get('welcome', 'Welcome'))
+        if self.all_caps:
+            print(self.templates.get('welcome', 'Welcome').upper())
+        else:
+            print(self.templates.get('welcome', 'Welcome'))
+
         self.current_state = self.init_state
         while self.current_state != self.end_state:
             user_input = input('User: ')
@@ -292,4 +306,7 @@ class DialogManager(DialogManagerBase):
             next_state, system_response = self.state_transition(self.current_state, user_input)
             print(self.preferences)
             self.current_state = next_state
-            print(f"System: {system_response}")
+            if self.all_caps:
+                print(f"System: {system_response}".upper())
+            else:
+                print(f"System: {system_response}")
