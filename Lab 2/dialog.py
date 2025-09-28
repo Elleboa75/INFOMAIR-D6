@@ -5,7 +5,8 @@ import Levenshtein
 import pandas as pd
 import re
 import baseline
-
+from machine_learning import MachineModelOne
+import tensorflow as tf
 
 @dataclass
 class MatchResult:
@@ -65,7 +66,7 @@ class RestaurantMatcher:
 
 
 class DialogManager:
-    def __init__(self, restaurant_data_path="restaurant_info.csv"):
+    def __init__(self, model, restaurant_data_path="restaurant_info.csv"):
         self.df = pd.read_csv(restaurant_data_path)
         self.current_state = "init"
         self.preferences = {"area": None, "food": None, "pricerange": None}
@@ -88,12 +89,11 @@ class DialogManager:
         })
         # ---------------------------------------------------------------
         self.suggest_counter = 0
+        self.model = model
 
     def classify_dialog_act(self, utterance):
         # Classify the dialog act using the baseline model --> should be change to the NN model
-        utterance = utterance.lower().strip()
-        model = baseline.Train_Baseline_2()
-        return model.predict_label(utterance)
+        return self.model.predict(utterance)['predicted_dialog_act']
 
     def extract_preferences(self, utterance):
         # Extract the preferences of the user using RegEx
@@ -220,7 +220,7 @@ class DialogManager:
 
         elif current_state == "ask_area":
             if dialog_act == "inform":
-                if 'any' in utterance.split():
+                if 'any' in utterance.split() or 'care' in utterance.split():
                     self.preferences['area'] = 'any'
                     return self.next_missing_state()
                 else:
@@ -239,7 +239,7 @@ class DialogManager:
                 
         elif current_state == "ask_food":
             if dialog_act == "inform":
-                if 'any' in utterance.split():
+                if 'any' in utterance.split() or 'care' in utterance.split():
                     self.preferences['food'] = 'any'
                     return self.next_missing_state()
                 else:
@@ -258,7 +258,7 @@ class DialogManager:
 
         elif current_state == "ask_pricerange":
             if dialog_act == "inform":
-                if 'any' in utterance.split():
+                if 'any' in utterance.split() or 'care' in utterance.split():
                     self.preferences['pricerange'] = 'any'
                     return self.next_missing_state()
                 else:
@@ -404,5 +404,6 @@ class DialogManager:
 
 # Create instance for interactive use
 if __name__ == "__main__":
-    dm = DialogManager()
+    NNmodel = MachineModelOne(dataset_location = "dialog_acts.dat", model = tf.keras.models.load_model("models/NN_model.keras"))
+    dm = DialogManager(NNmodel)
     dm.run_dialog()
