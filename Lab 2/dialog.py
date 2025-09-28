@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 from typing import List, Tuple, Optional
-from collections.abc import Iterable
+from typing import Iterable
 import Levenshtein
 import pandas as pd
 import re
-import baseline
+from machine_learning import MachineModelOne
+import tensorflow as tf
 
 
 @dataclass
@@ -23,7 +24,7 @@ class RestaurantMatcher:
 
     def find_exact_matches(self) -> pd.DataFrame:
         # | is the regex OR operator
-        pattern = '|'.join([rf"\b{word}\b" for word in self.user_input_split])
+        pattern = '|'.join([rf"\\b{word}\\b" for word in self.user_input_split])
         mask = self.df[self.text_columns].apply(lambda col: col.str.contains(pattern, case=False, na=False)).any(axis=1)
         return self.df[mask]
 
@@ -65,7 +66,7 @@ class RestaurantMatcher:
 
 
 class DialogManager:
-    def __init__(self, restaurant_data_path="restaurant_info.csv"):
+    def __init__(self, model, restaurant_data_path="restaurant_info.csv", ):
         self.df = pd.read_csv(restaurant_data_path)
         self.current_state = "init"
         self.preferences = {"area": None, "food": None, "pricerange": None}
@@ -80,20 +81,19 @@ class DialogManager:
             "suggest": "Based on your preferences, I found {count} restaurants. Here are some options: {restaurants}",
             "goodbye": "Thank you and goodbye!"
         }
-        # --- Added templates for the repair flow (keep old ones intact) ---
+        # --- Added minimal templates to support user choice on what to change ---
         self.templates.update({
             "ask_change_slot": "No restaurants match your preferences. Which would you like to change: area, food, or price range?",
             "confirm_change": "Okay—let’s update {slot}. What {slot} would you like?",
             "reset_confirm": "Alright, let’s start over.",
         })
-        # ---------------------------------------------------------------
+        # -----------------------------------------------------------------------
         self.suggest_counter = 0
+        self.model = model
 
     def classify_dialog_act(self, utterance):
         # Classify the dialog act using the baseline model --> should be change to the NN model
-        utterance = utterance.lower().strip()
-        model = baseline.Train_Baseline_2()
-        return model.predict_label(utterance)
+        return self.model.predict(utterance)['predicted_dialog_act']
 
     def extract_preferences(self, utterance):
         # Extract the preferences of the user using RegEx
@@ -127,6 +127,8 @@ class DialogManager:
             match = re.search(pattern, utterance)
             if match:
                 area_word = match.group(group)
+                print(area_word)
+
                 extracted['area'] = area_word
 
         for pattern, group in price_patterns:
@@ -145,27 +147,26 @@ class DialogManager:
                 return (key, preference[key])
         return True
 
-    # --- Added helpers: slot normalization + parse change requests ---
+    # ---------- Minimal helpers to parse which preference to change ----------
     def _normalize_slot(self, raw: str) -> Optional[str]:
         raw = raw.lower().strip()
         if raw in ["area", "location", "neighborhood", "neighbourhood"]:
             return "area"
         if raw in ["food", "cuisine", "type"]:
             return "food"
-        if raw in ["price", "pricerange", "budget", "cost", "pricing", "range"]:
+        if raw in ["price", "pricerange", "budget", "cost", "pricing", "range", "price range"]:
             return "pricerange"
         return None
 
     def parse_change_request(self, utterance: str):
         """
-        Returns (slot, value) where:
-          - slot is one of {'area','food','pricerange'} or 'restart'
-          - value can be None (means: ask for it), 'any', or a concrete token
+        Return (slot, value) where slot in {'area','food','pricerange'} or 'restart'.
+        Value is None (ask next), 'any', or a token.
         Supports:
           - 'change area'
           - 'change price to cheap'
           - 'set food to italian'
-          - 'restart' / 'start over' / 'change all'
+          - 'restart' / 'start over'
         """
         u = utterance.lower().strip()
 
@@ -173,13 +174,13 @@ class DialogManager:
         if any(k in u for k in ["restart", "start over", "reset", "change all", "everything"]):
             return ("restart", None)
 
-        # Direct slot mention without value, e.g. "area", "change price", "food please"
-        for key in ["area", "food", "price", "pricerange", "budget"]:
+        # Direct slot mention without value
+        for key in ["area", "food", "price", "pricerange", "budget", "price range"]:
             if key in u and (" to " not in u) and ("=" not in u):
                 return (self._normalize_slot(key), None)
 
-        # With value: "... area to north", "set price=cheap", "change food to any"
-        m = re.search(r"(area|food|price|pricerange)\s*(?:to|=)\s*([a-zA-Z\-]+)", u)
+        # With value: "... area to south", "set price=cheap", "change food to any"
+        m = re.search(r"(area|food|price|pricerange|price range)\s*(?:to|=)\s*([a-zA-Z\-]+)", u)
         if m:
             slot = self._normalize_slot(m.group(1))
             value = m.group(2)
@@ -191,7 +192,7 @@ class DialogManager:
 
         return (None, None)
 
-    # ----------------------------------------------------------------
+    # ------------------------------------------------------------------------
 
     def state_transition(self, current_state, user_utterance):
         # State transition flow:
@@ -202,6 +203,7 @@ class DialogManager:
         # Swap state, print system message
         utterance = user_utterance.lower()
         dialog_act = self.classify_dialog_act(utterance)
+        print(dialog_act)
         if current_state == "init":
             if dialog_act == "hello":
                 return "init", self.templates["welcome"]
@@ -220,7 +222,7 @@ class DialogManager:
 
         elif current_state == "ask_area":
             if dialog_act == "inform":
-                if 'any' in utterance.split():
+                if 'any' in utterance.split() or 'care' in utterance.split():
                     self.preferences['area'] = 'any'
                     return self.next_missing_state()
                 else:
@@ -233,13 +235,13 @@ class DialogManager:
                         self.preferences['area'] = extracted['area']
                         return self.next_missing_state()
                     else:
-                        return "ask_area", self.templates["no_match_error"].format(value=validity[1])
+                        return "ask_area", self.templates["no_match_error"].format(value=extracted)
             else:
                 return "ask_area", self.templates["ask_area"]
-                
+
         elif current_state == "ask_food":
             if dialog_act == "inform":
-                if 'any' in utterance.split():
+                if 'any' in utterance.split() or 'care' in utterance.split():
                     self.preferences['food'] = 'any'
                     return self.next_missing_state()
                 else:
@@ -258,12 +260,13 @@ class DialogManager:
 
         elif current_state == "ask_pricerange":
             if dialog_act == "inform":
-                if 'any' in utterance.split():
+                if 'any' in utterance.split() or 'care' in utterance.split():
                     self.preferences['pricerange'] = 'any'
                     return self.next_missing_state()
                 else:
                     extracted = self.extract_preferences(utterance)
                     if extracted == {}:
+                        print('Non extracted')
                         extracted['pricerange'] = RestaurantMatcher(self.df, self.text_columns,
                                                                     user_utterance).match().best_match
                     validity = self.check_preference_validity(extracted)
@@ -271,7 +274,7 @@ class DialogManager:
                         self.preferences['pricerange'] = extracted['pricerange']
                         return self.next_missing_state()
                     else:
-                        return "ask_pricerange", self.templates["no_match_error"].format(value=validity[1])
+                        return "ask_pricerange", self.templates["no_match_error"].format(value=extracted)
             else:
                 return "ask_pricerange", self.templates["ask_pricerange"]
 
@@ -284,67 +287,63 @@ class DialogManager:
                     suggest = suggestions.iloc[self.suggest_counter]['restaurantname']
                     self.suggest_counter += 1
                     return 'suggest', f'How about {suggest}?'
+
                 else:
-                    # --- changed to ask which slot to change ---
+                    # Changed: prompt user to choose which preference to change
                     return 'no_alts', self.templates["ask_change_slot"]
 
         elif current_state == "no_alts":
-            # --- new repair flow: let user choose which preference to change ---
             if dialog_act == 'affirm' or dialog_act == 'ack':
-                # keep original quick path: start over
                 self.preferences = {"area": None, "food": None, "pricerange": None}
                 return 'ask_area', 'Alright let me start over, what area do you prefer?'
+            else:
+                # NEW: let user pick which slot to change (minimal addition)
+                slot, value = self.parse_change_request(utterance)
 
-            slot, value = self.parse_change_request(utterance)
-
-            # Restart intent
-            if slot == "restart":
-                self.preferences = {"area": None, "food": None, "pricerange": None}
-                self.suggest_counter = 0
-                return "ask_area", self.templates["reset_confirm"] + " " + self.templates["ask_area"]
-
-            # If user just said "any" without specifying slot: relax the most constraining slot
-            if slot is None and value == "any":
-                for s in ["pricerange", "food", "area"]:
-                    if self.preferences.get(s) not in [None, "any"]:
-                        self.preferences[s] = "any"
-                        self.suggest_counter = 0
-                        return self.next_missing_state()
-                return "no_alts", self.templates["ask_change_slot"]
-
-            # If a specific slot is named
-            if slot in ["area", "food", "pricerange"]:
-                if value is None:
-                    # Clear that slot and prompt specifically for it
-                    self.preferences[slot] = None
+                if slot == "restart":
+                    self.preferences = {"area": None, "food": None, "pricerange": None}
                     self.suggest_counter = 0
-                    if slot == "area":
-                        return "ask_area", self.templates["confirm_change"].format(slot="area")
-                    if slot == "food":
-                        return "ask_food", self.templates["confirm_change"].format(slot="food")
-                    if slot == "pricerange":
-                        return "ask_pricerange", self.templates["confirm_change"].format(slot="price range")
-                else:
-                    # User provided a value
-                    if value == "any":
-                        self.preferences[slot] = "any"
+                    return "ask_area", self.templates["reset_confirm"] + " " + self.templates["ask_area"]
+
+                # If user just said "any" without slot, relax the most constraining slot
+                if slot is None and value == "any":
+                    for s in ["pricerange", "food", "area"]:
+                        if self.preferences.get(s) not in [None, "any"]:
+                            self.preferences[s] = "any"
+                            self.suggest_counter = 0
+                            return self.next_missing_state()
+                    return "no_alts", self.templates["ask_change_slot"]
+
+                # If a specific slot is named
+                if slot in ["area", "food", "pricerange"]:
+                    if value is None:
+                        # Clear that slot and move to the respective ask_* state
+                        self.preferences[slot] = None
                         self.suggest_counter = 0
-                        return self.next_missing_state()
+                        if slot == "area":
+                            return "ask_area", self.templates["confirm_change"].format(slot="area")
+                        if slot == "food":
+                            return "ask_food", self.templates["confirm_change"].format(slot="food")
+                        if slot == "pricerange":
+                            return "ask_pricerange", self.templates["confirm_change"].format(slot="price range")
                     else:
-                        is_valid = self.check_preference_validity({slot: value})
-                        if is_valid is True:
-                            self.preferences[slot] = value
+                        # Apply direct value (validate against dataset like elsewhere)
+                        if value == "any":
+                            self.preferences[slot] = "any"
                             self.suggest_counter = 0
                             return self.next_missing_state()
                         else:
-                            corrected = RestaurantMatcher(self.df, self.text_columns, value).match().best_match
-                            if corrected:
-                                return "no_alts", self.templates["confirm_correction"].format(given=value,
-                                                                                              corrected=corrected)
-                            return "no_alts", self.templates["no_match_error"].format(value=value)
+                            is_valid = self.check_preference_validity({slot: value})
+                            if is_valid is True:
+                                self.preferences[slot] = value
+                                self.suggest_counter = 0
+                                return self.next_missing_state()
+                            else:
+                                # fall back to asking again which to change
+                                return "no_alts", self.templates["no_match_error"].format(value=value)
 
-            # Fallback: ask again which slot to change
-            return "no_alts", self.templates["ask_change_slot"]
+                # If nothing understood, ask again which slot to change
+                return "no_alts", self.templates["ask_change_slot"]
 
         elif current_state == "end":
             return "end", self.templates["goodbye"]
@@ -369,7 +368,7 @@ class DialogManager:
                 self.suggest_counter += 1
                 return 'suggest', f'How about {suggest}?'
             else:
-                # --- changed to ask which slot to change ---
+                # Changed: prompt user to choose which preference to change
                 return 'no_alts', self.templates["ask_change_slot"]
 
     def check_any(self, pref, column):
@@ -400,9 +399,12 @@ class DialogManager:
             self.current_state = next_state
             print(self.preferences)
             print(f"System: {system_response}")
+            print(self.current_state)
 
 
 # Create instance for interactive use
 if __name__ == "__main__":
-    dm = DialogManager()
+    NNmodel = MachineModelOne(dataset_location="dialog_acts.dat",
+                              model=tf.keras.models.load_model("models/NN_model.keras"))
+    dm = DialogManager(NNmodel)
     dm.run_dialog()
