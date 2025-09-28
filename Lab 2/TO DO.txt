@@ -1,4 +1,7 @@
-Change the dialog act prediction model to the Neural network one
+- Improve the dialog act model
+- Check the spell check still works
+- Improve the preference extractor
+
 
 Make the system more robust:
  - Change the diagram if needed

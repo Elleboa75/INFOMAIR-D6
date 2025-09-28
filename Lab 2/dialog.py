@@ -8,5 +8,9 @@ if __name__ == "__main__":
                               model=tf.keras.models.load_model("models/NN_model.keras"))
     
     print(NNmodel.predict("thanks"))
-    dm = DialogManager(df, model = NNmodel, config_path = "utils/dialog_config.json")   # pass dataframe (and optionally config path, model)
+    dm = DialogManager(df, model = NNmodel, config_path = "utils/dialog_config.json",
+                       all_caps = False,
+                       allow_restarts = True,
+                       delay = 0,
+                       formal = True)   # pass dataframe (and optionally config path, model)
     dm.run_dialog()
