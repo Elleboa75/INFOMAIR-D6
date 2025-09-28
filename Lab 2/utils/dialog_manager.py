@@ -40,13 +40,14 @@ class DialogManager(DialogManagerBase):
         self.all_caps = all_caps
         self.allow_restart = allow_restarts
         self.delay = delay
+        self.last_suggested = None
 
         # templates and states
         if formal:
             self.templates = self.config.get('formal_templates', {})
         else:
             self.templates = self.config.get("informal_templates", {})
-            
+
         states = self.config.get('states', {})
         self.slot_states = states.get('slot_states', {})
         # --- NEW: automatically add extra slot states if the df contains those columns
@@ -149,6 +150,7 @@ class DialogManager(DialogManagerBase):
             return "inform"
         try:
             res = self.model.predict(u)
+            print(res)
             if isinstance(res, dict) and 'predicted_dialog_act' in res:
                 return res['predicted_dialog_act']
             if hasattr(self.model, 'predict_label'):
@@ -170,6 +172,7 @@ class DialogManager(DialogManagerBase):
         suggestions = self.sugg_engine.get_suggestions(self.preferences)
         if len(suggestions) > 0:
             suggestion_name = suggestions.iloc[self.suggest_counter % len(suggestions)]['restaurantname']
+            self.last_suggested = suggestion_name
             self.suggest_counter += 1
             return self.suggest_state, f"How about {suggestion_name}?"
         return self.no_alts_state, self.templates.get('no_alts', "I couldn't find matches")
@@ -239,11 +242,18 @@ class DialogManager(DialogManagerBase):
             return self._handle_slot_state(current_state, user_utterance, dialog_act)
 
         if current_state == self.suggest_state:
+            print(dialog_act)
+            if dialog_act == "request":
+                if self.last_suggested:
+                    return self.provide_contact_info(self.last_suggested)
+                
             if dialog_act in ['bye', 'ack', 'affirm']:
                 return self.end_state, self.templates.get('goodbye', 'Goodbye')
             suggestions = self.sugg_engine.get_suggestions(self.preferences)
+
             if len(suggestions) > 0 and self.suggest_counter < len(suggestions):
                 suggestion_name = suggestions.iloc[self.suggest_counter]['restaurantname']
+                self.last_suggested = suggestion_name
                 self.suggest_counter += 1
                 return self.suggest_state, f"How about {suggestion_name}?"
 
@@ -300,7 +310,22 @@ class DialogManager(DialogManagerBase):
             return self.end_state, self.templates.get('goodbye', 'Goodbye')
 
         return current_state, 'Could you please rephrase?'
-
+    
+    def provide_contact_info(self, restaurant_name):
+        restaurant_row = self.df[self.df['restaurantname'].str.lower() == restaurant_name.lower()]
+        
+        if not restaurant_row.empty:
+            restaurant = restaurant_row.iloc[0]
+            contact_info = []
+            
+            if 'phone' in restaurant and pd.notna(restaurant['phone']):
+                contact_info.append(f"Phone: {restaurant['phone']}")
+            if 'addr' in restaurant and pd.notna(restaurant['addr']):
+                contact_info.append(f"Address: {restaurant['addr']}")
+              
+            if contact_info:
+                return "suggest", f"Here's the contact information for {restaurant_name}: {', '.join(contact_info)}"
+            
     def show_thinking(self):
         print("Thinking...", end="", flush=True)
         time.sleep(self.delay)
@@ -319,6 +344,7 @@ class DialogManager(DialogManagerBase):
                 break
             next_state, system_response = self.state_transition(self.current_state, user_input)
             print(self.preferences)
+            print(next_state)
             self.current_state = next_state
             if self.all_caps:
                 self.show_thinking()

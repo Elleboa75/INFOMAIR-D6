@@ -1,13 +1,6 @@
 Change the dialog act prediction model to the Neural network one
 
 Make the system more robust:
- - If a user wants to change in preference
  - Change the diagram if needed
  - Make it more robust to different dialog acts
- - KeyError when inputting a value that is not yet known
-
-Clean up the code
- - Add comments
- - Make it more dynamic (a lot is hard coded)
-
 

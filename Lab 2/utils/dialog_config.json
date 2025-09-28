@@ -13,7 +13,8 @@
     "ask_change_slot": "Unfortunately, no restaurants match your current preferences. Which criterion would you like to modify: area, cuisine type, or price range?",
     "confirm_change": "Very well—I shall update your {slot} preference. What {slot} would you prefer?",
     "reset_confirm": "Understood. I shall restart the search process from the beginning.",
-    "no_reset": "I apologize, but system restarts are not currently permitted. Would you prefer to modify one of the following: area, cuisine type, or price range?"
+    "no_reset": "I apologize, but system restarts are not currently permitted. Would you prefer to modify one of the following: area, cuisine type, or price range?",
+    "contact_info" : "Here is the contact information for {restaurant}: Telephone: {phone}, Address: {address}"
   },
   "informal_templates": {
     "welcome": "Hey there! Welcome to the Cambridge restaurant finder! I can help you find places to eat by area, price, or food type. What're you in the mood for?",
@@ -29,9 +30,10 @@
     "ask_change_slot": "No luck with those preferences. What do you want to change: area, food type, or price?",
     "confirm_change": "Got it—let's switch up your {slot}. What {slot} do you want?",
     "reset_confirm": "Alright, starting fresh!",
-    "no_reset": "Sorry, can't restart right now. Want to change your area, food type, or price instead?"
+    "no_reset": "Sorry, can't restart right now. Want to change your area, food type, or price instead?",
+    "contact_info": "Here's the info for {restaurant}: Phone: {phone}, Address: {address}"
   },
-  
+
   "states": {
     "slot_states": {
       "ask_area": "area",
