@@ -1,0 +1,37 @@
+{
+  "templates": {
+    "welcome": "Welcome, what type of restaurant are you looking for!",
+    "ask_area": "What area would you prefer?",
+    "ask_food": "What kind of food do you want?",
+    "ask_pricerange": "What price range?",
+    "confirm_correction": "I did not recognize '{given}'. Did you mean '{corrected}'?",
+    "no_match_error": "I couldn't find a match for '{value}'. Could you please rephrase?",
+    "suggest": "Based on your preferences, I found {count} restaurants. Here are some options: {restaurants}",
+    "goodbye": "Thank you and goodbye!",
+    "no_alts": "Sorry, I couldn't find any restaurants matching your preferences. Would you like to modify them?"
+  },
+  "states": {
+    "slot_states": {
+      "ask_area": "area",
+      "ask_food": "food",
+      "ask_pricerange": "pricerange"
+    },
+    "suggest_state": "suggest",
+    "no_alts_state": "no_alts",
+    "end_state": "end",
+    "init_state": "init"
+  },
+  "patterns": {
+  "food": [
+    {"pattern": "(\\\\w+)\\\\s+food", "group": 1},
+    {"pattern": "serving\\\\s+(\\\\w+)", "group": 1}
+  ],
+  "area": [
+    {"pattern": "in\\\\s+the\\\\s+(\\\\w+)", "group": 1}
+  ],
+  "pricerange": [
+    {"pattern": "(cheap|expensive|moderate)", "group": 0}
+  ]
+  }
+
+}
