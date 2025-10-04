@@ -4,7 +4,7 @@ import json
 import os
 import time
 import sys
-
+import numpy as np
 import pandas as pd
 
 from .restaurant_matcher import RestaurantMatcher
@@ -75,14 +75,15 @@ class DialogManager(DialogManagerBase):
         self.additional_req_state = states.get('additional_req_state', 'add_req')
         self.end_state = states.get('end_state', 'end')
         self.init_state = states.get('init_state', 'init')
-
+        self.req_state = states.get('req_state', 'req_state')
+        
         # dialog bookkeeping
         self.current_state = self.init_state
         # ensure preferences always has the expected keys (dynamically include any new slots)
         self.preferences = {v: None for v in self.slot_states.values()}
+        self.extra_preferences = None
         self.text_columns = list(self.slot_states.values())
         self.suggest_counter = 0
-        self.additional_req_asked = False  # Track if we've asked for additional requirements
 
         # components (allow dependency injection for testing)
         self.extractor = extractor or SlotExtractor.from_config_file(config_path)
@@ -158,7 +159,7 @@ class DialogManager(DialogManagerBase):
         )
 
         # If basic slots are filled and we have extra slots available and haven't asked yet
-        if basic_slots_filled and self.extra_slots and not self.additional_req_asked:
+        if basic_slots_filled and self.extra_slots and self.extra_preferences == None:
             return self.additional_req_state, self.templates.get('additional_req', "Do you have any additional requirements?")
 
         # Check for missing slots in order (basic first, then extra)
@@ -185,19 +186,28 @@ class DialogManager(DialogManagerBase):
                 return self.next_missing_state()
 
             extracted = self.extractor.extract_preferences(utterance)
+            print(extracted)
             # slot-specific single-token fallback (when system is explicitly asking a slot)
             if not extracted or slot not in extracted:
-                tokens = (utterance or '').strip().split()
-                if len(tokens) == 1 and tokens[0]:
-                    extracted[slot] = tokens[0].lower()
-                else:
-                    try:
-                        match = RestaurantMatcher(self.df, self.text_columns, utterance).match()
+                try:
+                    print(slot)
+                    lowest_distance_index = []
+                    matches = []
+                    for word in utterance.split():
+                        match = RestaurantMatcher(self.df, self.text_columns, word).match()
                         best = getattr(match, 'best_match', None)
-                        if best:
-                            extracted[slot] = best
-                    except Exception:
-                        pass
+                        if (self.df[slot].str.lower() == best).any():
+                            matches.append(best)
+                            lowest_distance_index.append(match.distance)
+                        else:
+                            matches.append('None')
+                            lowest_distance_index.append(10e5)
+                    if lowest_distance_index[np.argmin(lowest_distance_index)] < 10e5: 
+                        self.preferences[slot] = matches[np.argmin(lowest_distance_index)]
+
+                            
+                except Exception:
+                    pass
 
             # validate only the current slot value extracted
             validity = self.validator.check_preference_validity({k: v for k, v in extracted.items() if k == slot})
@@ -227,10 +237,11 @@ class DialogManager(DialogManagerBase):
                         # then any of the new text slots if present
                         priority_cols = [c for c in ['food', 'area', 'pricerange', 'food_quality', 'crowdedness', 'length_of_stay'] if c in self.text_columns]
                         for col in priority_cols:
-                            if col in self.text_columns and self.df[col].str.contains(rf"\b{re.escape(tok)}\b", case=False, na=False).any():
+                            exact_matches = self.df[col].str.lower() == tok
+                            if exact_matches.any():
                                 extracted[col] = tok
-                                break
-
+                            
+                           
                 validity = self.validator.check_preference_validity(extracted)
                 if validity is True:
                     self.preferences.update(extracted)
@@ -242,16 +253,28 @@ class DialogManager(DialogManagerBase):
             return self._handle_slot_state(current_state, user_utterance, dialog_act)
 
         if current_state == self.additional_req_state:
-            self.additional_req_asked = True 
             if dialog_act in ['affirm', 'ack']:
-                return self.next_missing_state()
+                return self.req_state, self.templates.get('request', 'Please state your requests')
+            
+            elif dialog_act in ['inform']:
+                request_strings = ['touristic', 'assigned seats', 'children', 'romantic']
+                actual_requests = []
+                for req_string in request_strings:
+                    if req_string in user_utterance.lower():
+                        actual_requests.append(req_string)
+                if len(actual_requests) == 0:
+                    return self.additional_req_state, self.templates.get('additional_req', "Do you have any additional requirements?")
+                self.extra_preferences = actual_requests
+                suggestions = self.sugg_engine.get_suggestions_extra_req(self.preferences, actual_requests)
+                if len(suggestions) > 0:
+                    suggestion_name = suggestions.iloc[self.suggest_counter % len(suggestions)]['restaurantname']
+                    self.last_suggested = suggestion_name
+                    self.suggest_counter += 1
+                    return self.suggest_state, f"How about {suggestion_name}?"
+                
+                return self.no_alts_state, self.templates.get('no_alts', "I couldn't find matches")
+            
             elif dialog_act in ['negate', 'deny']:
-                # Fill all extra slots with 'any' to skip them
-                for state in self.extra_slots:
-                    slot = self.slot_states.get(state)
-                    if slot and self.preferences.get(slot) is None:
-                        self.preferences[slot] = 'any'
-
                 suggestions = self.sugg_engine.get_suggestions(self.preferences)
                 if len(suggestions) > 0:
                     suggestion_name = suggestions.iloc[self.suggest_counter % len(suggestions)]['restaurantname']
@@ -260,18 +283,36 @@ class DialogManager(DialogManagerBase):
                     return self.suggest_state, f"How about {suggestion_name}?"
                 return self.no_alts_state, self.templates.get('no_alts', "I couldn't find matches")
             else:
-                self.additional_req_asked = False
                 return self.additional_req_state, self.templates.get('additional_req', "Do you have any additional requirements?")
+            
+        if current_state == self.req_state:
+            request_strings = ['touristic', 'assigned seats', 'children', 'romantic']
+            actual_requests = []
+            for req_string in request_strings:
+                if req_string in user_utterance:
+                    actual_requests.append(req_string)
+            self.extra_preferences = actual_requests       
+            suggestions = self.sugg_engine.get_suggestions_extra_req(self.preferences, actual_requests)
+            if len(suggestions) > 0:
+                suggestion_name = suggestions.iloc[self.suggest_counter % len(suggestions)]['restaurantname']
+                self.last_suggested = suggestion_name
+                self.suggest_counter += 1
+                return self.suggest_state, f"How about {suggestion_name}?"
 
         if current_state == self.suggest_state:
-            print(dialog_act)
             if dialog_act == "request":
                 if self.last_suggested:
                     return self.provide_contact_info(self.last_suggested)
                 
             if dialog_act in ['bye', 'ack', 'affirm']:
                 return self.end_state, self.templates.get('goodbye', 'Goodbye')
-            suggestions = self.sugg_engine.get_suggestions(self.preferences)
+            
+            if self.extra_preferences != None:
+                suggestions = self.sugg_engine.get_suggestions_extra_req(self.preferences,self.extra_preferences)
+
+            else:    
+                suggestions = self.sugg_engine.get_suggestions(self.preferences)
+
 
             if len(suggestions) > 0 and self.suggest_counter < len(suggestions):
                 suggestion_name = suggestions.iloc[self.suggest_counter]['restaurantname']
@@ -285,7 +326,7 @@ class DialogManager(DialogManagerBase):
             if dialog_act in ['affirm', 'ack']:
                 self.preferences = {v: None for v in self.slot_states.values()}
                 self.suggest_counter = 0
-                self.additional_req_asked = False
+                self.extra_preferences = None
                 return self.next_missing_state()
 
             slot, value = self.parser.parse_change_request(utterance)
@@ -293,7 +334,8 @@ class DialogManager(DialogManagerBase):
                 if self.allow_restart == True:
                     self.preferences = {v: None for v in self.slot_states.values()}
                     self.suggest_counter = 0
-                    self.additional_req_asked = False
+                    self.extra_preferences = None
+
                     return self.next_missing_state()[0], self.templates.get('reset_confirm', 'Restarting') + " " + self.templates.get(self.next_missing_state()[0], '')
                 else:
                     return self.no_alts_state, self.templates.get('no_reset','No resets allowed')

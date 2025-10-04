@@ -1,7 +1,6 @@
 How to run:
 Just run the dialog.py file
 
-
 Notes (still to do + things done):
 1. We have to change the way extra-requirements are asked (now its just implemented as a 3 question sequence-- > suggestion).
    It should be a 1-line anwser with automatic extraction --> suggestion

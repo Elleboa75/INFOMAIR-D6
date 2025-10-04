@@ -41,3 +41,26 @@ class SuggestionEngine(SuggestionEngineBase):
 
         suggestions = self.df.loc[mask]
         return suggestions.reset_index(drop=True)
+
+    def get_suggestions_extra_req(self, preferences: Dict[str, str], extra_req: list[str]):
+        df = self.get_suggestions(preferences)
+        if 'touristic' in extra_req:
+            # inference rule 1 & 2
+            df = df.loc[(df['pricerange'] == 'cheap') & (df['foodquality'] == 'good') & (df['food'] != 'romanian')] 
+
+        if 'assigned seats' in extra_req:
+            # inference rule 3
+            df = df.loc[df['crowdedness'] == ' busy'] 
+
+        if 'children' in extra_req:
+            # inference rule 4
+            df = df.loc[df['lengthstay'] != 'long']
+        
+        if 'romantic' in extra_req:
+            # inference rule 5 & 6
+            df = df.loc[(df['crowdedness'] != 'busy') & (df['lengthstay'] == 'long')]
+        
+        return df.reset_index(drop=True)
+            
+        
+        

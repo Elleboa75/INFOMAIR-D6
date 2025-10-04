@@ -33,6 +33,6 @@ class PreferenceValidator(PreferenceValidatorBase):
             if key not in self.df.columns:
                 return (key, val)
 
-            if not self.df[key].str.contains(rf"\b{re.escape(val)}\b", case=False, na=False).any():
+            if not (self.df[key].str.lower() == val.lower()).any():
                 return (key, val)
         return True

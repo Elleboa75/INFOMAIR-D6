@@ -10,6 +10,7 @@
     "confirm_correction": "I apologize, but I did not recognize '{given}'. Did you perhaps mean '{corrected}'?",
     "no_match_error": "I was unable to locate a match for '{value}'. Would you be so kind as to rephrase your request?",
     "additional_req": "Do you have any additional requirements or preferences?",
+    "request": "Could you please specify your requirements for food quality, crowdedness, and length of stay?",
     "suggest": "Based on your specified preferences, I have located {count} restaurants that match your criteria. Please allow me to present some options for your consideration: {restaurants}",
     "goodbye": "Thank you very much for using our service. Have a wonderful day!",
     "no_alts": "I regret to inform you that I could not find any restaurants that match your current preferences. Would you be willing to modify your criteria?",
@@ -30,6 +31,7 @@
     "confirm_correction": "Hmm, I didn't catch '{given}'. Did you mean '{corrected}'?",
     "no_match_error": "Couldn't find anything for '{value}'. Can you try saying it differently?",
     "additional_req": "Got any other must-haves?",
+    "request": "What are you looking for in terms of food quality, how busy it is, and how long you'll stay?",
     "suggest": "Cool! Found {count} spots that fit what you're looking for. Check these out: {restaurants}",
     "goodbye": "Thanks for using the system! Catch you later!",
     "no_alts": "Bummer, no restaurants match what you're after. Want to try different options?",
@@ -50,18 +52,23 @@
     "no_alts_state": "no_alts",
     "end_state": "end",
     "init_state": "init",
-    "additional_req_state": "add_req"
+    "additional_req_state": "add_req",
+    "req_state" : "req_state"
   },
   "patterns": {
     "food": [
       {"pattern": "(\\\\w+)\\\\s+food", "group": 1},
-      {"pattern": "serving\\\\s+(\\\\w+)", "group": 1}
+      {"pattern": "serving\\\\s+(\\\\w+)", "group": 1},
+      {"pattern": "(british|moderneuropean|italian|romanian|seafood|chinese|steakhouse|asianoriental|french|portuguese|indian|spanish|european|vietnamese|korean|thai|moroccan|swiss|fusion|gastropub|tuscan|international|traditional|mediterranean|polynesian|african|turkish|bistro|northamerican|australasian|persian|jamaican|lebanese|cuban|japanese|catalan)", "group": 0}
+      
     ],
     "area": [
-      {"pattern": "in\\\\s+the\\\\s+(\\\\w+)", "group": 1}
+      {"pattern": "in\\\\s+the\\\\s+(\\\\w+)", "group": 1},
+      {"pattern": "(west|north|south|centre|east)", "group":0}
     ],
     "pricerange": [
       {"pattern": "(cheap|expensive|moderate)", "group": 0}
+      
     ],
     "foodquality": [
       {"pattern": "(bad|average|good)", "group": 0}
