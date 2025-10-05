@@ -138,12 +138,7 @@ class DialogManager(DialogManagerBase):
                 return "bye"
             return "inform"
         try:
-<<<<<<< Updated upstream
-            res = self.model.predict(u)
-            print(res)
-=======
             res = self.model.predict([u])
->>>>>>> Stashed changes
             if isinstance(res, dict) and 'predicted_dialog_act' in res:
                 return res['predicted_dialog_act']
             if hasattr(self.model, 'predict_label'):
@@ -152,11 +147,7 @@ class DialogManager(DialogManagerBase):
                 return res
         except Exception:
             pass
-<<<<<<< Updated upstream
-        return "inform"
-=======
         return "null"
->>>>>>> Stashed changes
 
     def next_missing_state(self) -> Tuple[str, str]:
         # Check if basic slots (area, food, pricerange) are all filled
@@ -198,10 +189,6 @@ class DialogManager(DialogManagerBase):
             # slot-specific single-token fallback (when system is explicitly asking a slot)
             if not extracted or slot not in extracted:
                 try:
-<<<<<<< Updated upstream
-                    print(slot)
-=======
->>>>>>> Stashed changes
                     lowest_distance_index = []
                     matches = []
                     for word in utterance.split():
@@ -233,11 +220,7 @@ class DialogManager(DialogManagerBase):
     def state_transition(self, current_state: str, user_utterance: str) -> Tuple[str, str]:
         utterance = (user_utterance or '').lower()
         dialog_act = self.classify_dialog_act(utterance)
-<<<<<<< Updated upstream
-
-=======
         print(dialog_act)
->>>>>>> Stashed changes
         if current_state == self.init_state:
             if dialog_act == 'hello':
                 return self.init_state, self.templates.get('welcome', 'Welcome')
@@ -424,11 +407,6 @@ class DialogManager(DialogManagerBase):
             if user_input.lower() in ['quit', 'exit']:
                 break
             next_state, system_response = self.state_transition(self.current_state, user_input)
-<<<<<<< Updated upstream
-            print(self.preferences)
-            print(next_state)
-=======
->>>>>>> Stashed changes
             self.current_state = next_state
             if self.all_caps:
                 self.show_thinking()
