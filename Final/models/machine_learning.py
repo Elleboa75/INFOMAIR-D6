@@ -18,7 +18,7 @@ class MachineModelOne():
                  dataset_location,
                  max_features=3000,
                  model=None,
-                 model_path="models/NN_model.keras"):
+                 model_path="saved/NN_model.keras"):
         self.dataset_location = dataset_location
         self.model = model
         self.model_path = model_path
@@ -244,7 +244,7 @@ class MachineModelTwo():
         clf = tree.DecisionTreeClassifier(max_depth=self.max_deph, random_state=42)
         model = clf.fit(train_vectors, train_labels)
         self.model = model
-        dt_file = open('models/DT_model.pkl', 'ab')
+        dt_file = open('saved/DT_model.pkl', 'ab')
         pickle.dump(model, dt_file)
         dt_file.close()
 
@@ -280,6 +280,9 @@ class MachineModelTwo():
             print("Classes missing in test set:",
                   [self.label_encoder.classes_[i] for i in sorted(missing)])
 
+    def predict_label(self,sentence):
+        return self.label_encoder.inverse_transform(self.model.predict(self.vectorizer.transform(sentence)))[0]
+
 # Logistic Regression model
 class MachineModelThree:
     def __init__(
@@ -287,7 +290,7 @@ class MachineModelThree:
         dataset_location,
         model=None,
         max_features=3000,
-        model_path="models/LR_model.pkl",
+        model_path="saved/LR_model.pkl",
     ):
         self.dataset_location = dataset_location
         self.model = model
@@ -445,19 +448,10 @@ class MachineModelThree:
         if missing:
             print("Classes missing in test set:",
                   [self.label_encoder.classes_[i] for i in sorted(missing)])
-"""
-if __name__ == "__main__":
-    dataset_location = "dialog_acts.dat"
-    machine_model = MachineModelOne(dataset_location = dataset_location)
-    machine_model.preprocess()
-    machine_model.model()
-    
-    machine_model = MachineModelTwo(dataset_location = dataset_location)
-    machine_model.preprocess()
-    machine_model.model()
-"""
+            
 
-#TODO
-##Provide a report of dialog acts that re mostly preducted right or wrong. Confusion matric.
-#add user input
+    def predict_labels(self, sentence):
+        return self.label_encoder.inverse_transform(self.model.predict(self.vectorizer.transform(sentence)))[0]
+
+
 

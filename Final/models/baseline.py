@@ -8,11 +8,11 @@ class BaselineModel_1:
     def __init__(self, labels):
         self.most_common = Counter(labels).most_common()[0][0]
 
-    def predict(self, sentence):
+    def predict(self):
          return self.most_common    
 
     def evaluate(self, sentences, labels):
-        eval_labels = [self.predict(sentence) for sentence in sentences]
+        eval_labels = [self.predict() for sentence in sentences]
         print('Baseline 1 accuracy:', accuracy_score(labels, eval_labels))
 
 
@@ -45,17 +45,13 @@ class BaselineModel_2:
     def evaluate(self, sentences, labels):
         eval_labels = []
         for sentence in sentences:
-            count_ = self.predict(sentence)
-            if sum(count_) > 0:
-                eval_labels.append(keyword_dict[np.argmax(count_)])
-
-            else:
-                eval_labels.append('inform')
+            pred_label = self.predict_label(sentence)
+            eval_labels.append(pred_label)
 
         print('Baseline 2 accuracy:', accuracy_score(labels, eval_labels))
 
 
-labels, text = format_data("dialog_acts.dat")
+labels, text = format_data("../data/dialog_acts.dat")
 
 keyword_ack = ['kay', 'okay', 'good', 'fine']
 keyword_affirm = ['yes', 'yeah']

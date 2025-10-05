@@ -185,7 +185,6 @@ class DialogManager(DialogManagerBase):
                 return self.next_missing_state()
 
             extracted = self.extractor.extract_preferences(utterance)
-            print(extracted)
             # slot-specific single-token fallback (when system is explicitly asking a slot)
             if not extracted or slot not in extracted:
                 try:
@@ -220,7 +219,6 @@ class DialogManager(DialogManagerBase):
     def state_transition(self, current_state: str, user_utterance: str) -> Tuple[str, str]:
         utterance = (user_utterance or '').lower()
         dialog_act = self.classify_dialog_act(utterance)
-        print(dialog_act)
         if current_state == self.init_state:
             if dialog_act == 'hello':
                 return self.init_state, self.templates.get('welcome', 'Welcome')
@@ -287,7 +285,7 @@ class DialogManager(DialogManagerBase):
             request_strings = ['touristic', 'assigned seats', 'children', 'romantic']
             actual_requests = []
             for req_string in request_strings:
-                if req_string in user_utterance:
+                if req_string in user_utterance.lower():
                     actual_requests.append(req_string)
             self.extra_preferences = actual_requests       
             suggestions = self.sugg_engine.get_suggestions_extra_req(self.preferences, actual_requests)
@@ -334,7 +332,7 @@ class DialogManager(DialogManagerBase):
                     self.suggest_counter = 0
                     self.extra_preferences = None
 
-                    return self.next_missing_state()[0], self.templates.get('reset_confirm', 'Restarting') + " " + self.templates.get(self.next_missing_state()[0], '')
+                    return self.init_state, self.templates.get('reset_confirm', 'Restarting') + " " + self.templates.get(self.next_missing_state()[0], '')
                 else:
                     return self.no_alts_state, self.templates.get('no_reset','No resets allowed')
 
