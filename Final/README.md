@@ -96,7 +96,7 @@ Formal
 
 
 ## Group members:
-- Yazan Mousa
+- Yazan Mousa (4971698)
 - Julian Nobbe (4772318)
-- David Vanghelescu
+- David Vanghelescu (1674560)
 - Justin Nguyen (7085842)
