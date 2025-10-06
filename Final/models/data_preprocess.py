@@ -1,4 +1,7 @@
 def format_data(data):
+    """
+    Simple function to get the data in the correct format for training. Splits the data in utterances (feature) and dialog_acts (labels)
+    """
     dialog_act = []
     utterance_content = []
     with open(data) as f:

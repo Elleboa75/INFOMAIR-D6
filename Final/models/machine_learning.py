@@ -57,7 +57,7 @@ class MachineModelOne():
                  dataset_location,
                  max_features=3000,
                  model=None,
-                 model_path="saved/NN_model.keras"):
+                 model_path="models/saved/NN_model.keras"):
         self.dataset_location = dataset_location
         self.model = model
         self.model_path = model_path

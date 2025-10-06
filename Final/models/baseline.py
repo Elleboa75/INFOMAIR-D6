@@ -1,10 +1,17 @@
 import numpy as np
-from collections import Counter     
+from collections import Counter
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
-from data_preprocess import format_data
+
+try:
+    from .data_preprocess import format_data
+except ImportError:
+    from data_preprocess import format_data
 
 class BaselineModel_1:  
+    """
+    Baseline 1 model which returns the most common label in the data
+    """
     def __init__(self, labels):
         self.most_common = Counter(labels).most_common()[0][0]
 
@@ -17,11 +24,16 @@ class BaselineModel_1:
 
 
 class BaselineModel_2:  
+    """
+    Baseline 2 model which uses simple keyword matching to predict the label
+    """
     def __init__(self, keywords, labels):
         self.keywords = keywords
         self.most_common = Counter(labels).most_common()[0][0]
 
     def predict(self, sentence):
+        # Count the occurences of each keyword in the sentence, the label with the most keyword matches is the predicted label
+        # Returns an array of keyword matches per label
         counter_ = np.zeros(15)
         for cat in enumerate(self.keywords):
             ct = cat[0]
@@ -31,6 +43,8 @@ class BaselineModel_2:
         return counter_
     
     def predict_label(self, sentence):
+        # Count the occurences of each keyword in the sentence, the label with the most keyword matches is the predicted label
+        # Returns the predicted label
         counter_ = np.zeros(15)
         for cat in enumerate(self.keywords):
             ct = cat[0]
@@ -43,6 +57,7 @@ class BaselineModel_2:
         return self.most_common
 
     def evaluate(self, sentences, labels):
+        # Evaluates the baseline model using the data
         eval_labels = []
         for sentence in sentences:
             pred_label = self.predict_label(sentence)
@@ -50,9 +65,8 @@ class BaselineModel_2:
 
         print('Baseline 2 accuracy:', accuracy_score(labels, eval_labels))
 
-
-labels, text = format_data("../data/dialog_acts.dat")
-
+### Keyword lists and dictionary
+labels, text = format_data("data/dialog_acts.dat")
 keyword_ack = ['kay', 'okay', 'good', 'fine']
 keyword_affirm = ['yes', 'yeah']
 keyword_bye = ['good bye', 'bye']
@@ -78,6 +92,7 @@ keyword_dict = {0: 'ack', 1: 'affirm', 2: 'bye', 3: 'confirm', 4: 'deny',
                 10: 'reqalts', 11: 'reqmore', 12: 'request', 13: 'restart', 14: 'thankyou'}
 
 
+# Training functions for both models 
 def Train_Baseline_1():
     model = BaselineModel_1(labels)
     return model
@@ -85,22 +100,3 @@ def Train_Baseline_1():
 def Train_Baseline_2():
     model = BaselineModel_2(keywords, labels)
     return model
-
-"""
-eval_labels = []
-for sentence in text:
-    count_ = baseline_2(sentence, keywords)
-    if sum(count_) > 0:
-        eval_labels.append(keyword_dict[np.argmax(count_)])
-    else:
-        eval_labels.append('inform')
-
-
-
-print('accuracy:', accuracy_score(labels, eval_labels))
-cm = confusion_matrix(labels, eval_labels)
-
-disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-disp.plot()
-
-"""

@@ -4,3 +4,5 @@ pandas
 python-Levenshtein
 scikit-learn
 tensorflow
+matplotlib
+pickle

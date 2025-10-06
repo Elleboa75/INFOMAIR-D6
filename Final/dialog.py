@@ -9,7 +9,7 @@ if __name__ == "__main__":
     NNmodel.preprocess()
     dm = DialogManager(df, model = NNmodel, config_path = "utils/dialog_config.json",
                        all_caps = False, # Type all system messages in caps
-                       allow_restarts = True, # Allow restarts
+                       allow_restarts = False, # Allow restarts
                        delay = 10, # Delay in seconds,
                        formal = True # Formal prompts toggle
                        )   

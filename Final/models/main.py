@@ -1,9 +1,10 @@
 from machine_learning import MachineModelOne, MachineModelTwo, MachineModelThree
 
-## Train Models
 if __name__ == "__main__":
-    #labels, text = format_data("dialog_acts.dat")
-    dataset_location = "../data/dialog_acts.dat"
+    """
+    Training file for the machine learning models, also saves them in /saved/
+    """
+    dataset_location = "data/dialog_acts.dat"
     NNModel = MachineModelOne(dataset_location = dataset_location)
     DecisionTreeModel = MachineModelTwo(dataset_location = dataset_location, max_features=100, max_depth=10)
     LogisticRegressionModel = MachineModelThree(dataset_location=dataset_location)
