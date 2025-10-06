@@ -18,9 +18,11 @@ if __name__ == "__main__":
     NNmodel = MachineModelOne(dataset_location = "../data/dialog_acts.dat", model = tf.keras.models.load_model("saved/NN_model.keras"))
     NNmodel.preprocess()
 
-    LRmodel = MachineModelThree("../data/dialog_acts.dat", model=None, model_path="saved/LR_model.pkl")
+    LRmodel = MachineModelThree("../data/dialog_acts.dat",
+                                model="saved/LR_model.pkl",  # pass the path so it knows what to load
+                                model_path="saved/LR_model.pkl")
+    LRmodel._ensure_model_loaded()  # <-- load the saved model into self.model
     LRmodel.preprocess()
-    LRmodel.eval_model()
 
     ## Baseline Models
     baseline_1_model.evaluate(text, labels)
