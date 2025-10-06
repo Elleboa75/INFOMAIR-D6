@@ -1,12 +1,10 @@
 from typing import Tuple, Dict, Any
-import re
 import json
 import os
 import time
-import sys
 import numpy as np
 import pandas as pd
-
+import models.baseline as baseline
 from .restaurant_matcher import RestaurantMatcher
 from .extractor import SlotExtractor
 from .validator import PreferenceValidator
@@ -95,7 +93,6 @@ class DialogManager(DialogManagerBase):
         self.model = model
         if self.model is None:
             try:
-                import baseline
                 self.model = baseline.Train_Baseline_2()
             except Exception:
                 self.model = None

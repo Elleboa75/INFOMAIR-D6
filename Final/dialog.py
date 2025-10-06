@@ -8,8 +8,9 @@ if __name__ == "__main__":
                               model=tf.keras.models.load_model("models/saved/NN_model.keras"))
     NNmodel.preprocess()
     dm = DialogManager(df, model = NNmodel, config_path = "utils/dialog_config.json",
-                       all_caps = False,
-                       allow_restarts = True,
-                       delay = 0,
-                       formal = True)   # pass dataframe (and optionally config path, model)
+                       all_caps = False, # Type all system messages in caps
+                       allow_restarts = True, # Allow restarts
+                       delay = 10, # Delay in seconds,
+                       formal = True # Formal prompts toggle
+                       )   
     dm.run_dialog()
