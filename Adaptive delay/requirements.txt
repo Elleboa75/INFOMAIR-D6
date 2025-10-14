@@ -1,0 +1,7 @@
+joblib
+numpy
+pandas
+python-Levenshtein
+scikit-learn
+tensorflow
+matplotlib

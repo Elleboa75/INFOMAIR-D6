@@ -1,0 +1,83 @@
+{
+  "formal_templates": {
+    "welcome": "Good day, and welcome to the Cambridge restaurant reservation system. I would be delighted to assist you in finding restaurants based on your preferences for area, price range, or cuisine type. How may I be of service today?",
+    "ask_area": "Could you please specify which area you would prefer?",
+    "ask_food": "What type of cuisine would you like to enjoy?",
+    "ask_pricerange": "What price range would be suitable for you?",
+    "ask_foodquality": "What food quality would you prefer?",
+    "ask_crowdedness": "What crowdedness level would you prefer?",
+    "ask_lengthstay": "How long do you plan to stay?",
+    "confirm_correction": "I apologize, but I did not recognize '{given}'. Did you perhaps mean '{corrected}'?",
+    "no_match_error": "I was unable to locate a match for '{value}'. Would you be so kind as to rephrase your request?",
+    "additional_req": "Do you have any additional requirements or preferences?",
+    "request": "Could you please specify your requirements?",
+    "suggest": "Based on your specified preferences, I have located {count} restaurants that match your criteria. Please allow me to present some options for your consideration: {restaurants}",
+    "goodbye": "Thank you very much for using our service. Have a wonderful day!",
+    "no_alts": "I regret to inform you that I could not find any restaurants that match your current preferences. Would you be willing to modify your criteria?",
+    "ask_change_slot": "Unfortunately, no restaurants match your current preferences. Would you like to modify a criterion like: area, cuisine type, or price range? Or would you like to restart?",
+    "confirm_change": "Very well—I shall update your {slot} preference. What {slot} would you prefer?",
+    "reset_confirm": "Understood. I shall restart the search process from the beginning, can you please state your preferences.",
+    "no_reset": "I apologize, but system restarts are not currently permitted. Would you prefer to modify one of the following: area, cuisine type, or price range?",
+    "contact_info" : "Here is the contact information for {restaurant}: Telephone: {phone}, Address: {address}"
+  },
+  "informal_templates": {
+    "welcome": "Hey there! Welcome to the Cambridge restaurant finder! I can help you find places to eat by area, price, or food type. What're you in the mood for?",
+    "ask_area": "What area are you thinking?",
+    "ask_food": "What kind of food are you craving?",
+    "ask_pricerange": "What's your budget like?",
+    "ask_foodquality": "How's the food quality matter to you?",
+    "ask_crowdedness": "Do you care about how busy it is?",
+    "ask_lengthstay": "How long you planning to hang out?",
+    "confirm_correction": "Hmm, I didn't catch '{given}'. Did you mean '{corrected}'?",
+    "no_match_error": "Couldn't find anything for '{value}'. Can you try saying it differently?",
+    "additional_req": "Got any other must-haves?",
+    "request": "What requirements are you looking for?",
+    "suggest": "Cool! Found {count} spots that fit what you're looking for. Check these out: {restaurants}",
+    "goodbye": "Thanks for using the system! Catch you later!",
+    "no_alts": "Bummer, no restaurants match what you're after. Want to try different options?",
+    "ask_change_slot": "No luck with those preferences. Do you want to change any of the following: area, food type, or price? Or do you want to restart?",
+    "confirm_change": "Got it—let's switch up your {slot}. What {slot} do you want?",
+    "reset_confirm": "Alright, starting fresh! What preferences are you looking for?",
+    "no_reset": "Sorry, can't restart right now. Want to change your area, food type, or price instead?",
+    "contact_info": "Here's the info for {restaurant}: Phone: {phone}, Address: {address}"
+  },
+
+  "states": {
+    "slot_states": {
+      "ask_area": "area",
+      "ask_food": "food",
+      "ask_pricerange": "pricerange"
+    },
+    "suggest_state": "suggest",
+    "no_alts_state": "no_alts",
+    "end_state": "end",
+    "init_state": "init",
+    "additional_req_state": "add_req",
+    "req_state" : "req_state"
+  },
+  "patterns": {
+    "food": [
+      {"pattern": "(\\\\w+)\\\\s+food", "group": 1},
+      {"pattern": "serving\\\\s+(\\\\w+)", "group": 1},
+      {"pattern": "(british|moderneuropean|italian|romanian|seafood|chinese|steakhouse|asianoriental|french|portuguese|indian|spanish|european|vietnamese|korean|thai|moroccan|swiss|fusion|gastropub|tuscan|international|traditional|mediterranean|polynesian|african|turkish|bistro|northamerican|australasian|persian|jamaican|lebanese|cuban|japanese|catalan)", "group": 0}
+      
+    ],
+    "area": [
+      {"pattern": "in\\\\s+the\\\\s+(\\\\w+)", "group": 1},
+      {"pattern": "(west|north|south|centre|east)", "group":0}
+    ],
+    "pricerange": [
+      {"pattern": "(cheap|expensive|moderate)", "group": 0}
+      
+    ],
+    "foodquality": [
+      {"pattern": "(bad|average|good)", "group": 0}
+    ],
+    "crowdedness": [
+      {"pattern": "(not busy|busy)", "group": 0}
+    ],
+    "lengthstay": [
+      {"pattern": "(short|medium|long)", "group": 0}
+    ]
+  }
+}
